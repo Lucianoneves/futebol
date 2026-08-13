@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PlayerType { // Tipo de jogador (mensal ou casual)
+  MONTHLY // Mensal
+  CASUAL // Casual
+}
+
+enum PaymentStatus { // Status do pagamento (pendente, pago, vencido, cancelado)
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum CashFlowType { // Tipo de fluxo de caixa (receita, despesa)
+  INCOME
+  OUTCOME
+}
+
+enum Role { // Tipo de usuário (admin, usuário)
+  ADMIN
+  USER
+}
+
+
+model User { // Usuário do sistema (login / admin)
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Player { // Jogador do time (mensal ou casual)
+  id            String     @id @default(uuid())
+  name          String
+  email         String?    @unique
+  phone         String?
+  type          PlayerType
+  monthlyFee    Decimal?   @db.Decimal(10, 2)
+  casualFee     Decimal?   @db.Decimal(10, 2)
+  active        Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  payments      Payment[]
+
+  @@map("players")
+}
+
+
+model Payment { // Pagamento do jogador (mensal ou casual)
+  id         String        @id @default(uuid())
+  playerId   String
+  year       Int
+  month      Int
+  amount     Decimal       @db.Decimal(10, 2) // valor total do mês
+  paidAmount Decimal       @default(0) @db.Decimal(10, 2) // quanto já foi pago (ex: 15 + 25)
+  status     PaymentStatus @default(PENDING)
+  paidAt     DateTime?
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  player     Player        @relation(fields: [playerId], references: [id])
+  cashFlow   CashFlow?
+
+  @@unique([playerId, year, month])
+  @@map("payments")
+}
+
+model ExpenseType { // Tipos de despesa editáveis (Carne, Carvão, Linguiça, etc.)
+  id        String    @id @default(uuid())
+  name      String    @unique
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  expenses  Expense[]
+
+  @@map("expense_types")
+}
+
+model Expense { // Despesa do time
+  id            String      @id @default(uuid())
+  description   String
+  expenseTypeId String
+  amount        Decimal     @db.Decimal(10, 2)
+  spentAt       DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  expenseType   ExpenseType @relation(fields: [expenseTypeId], references: [id])
+  cashFlow      CashFlow?
+
+  @@map("expenses")
+}
+
+model CashFlow { // Fluxo de caixa (receita, despesa)
+  id          String       @id @default(uuid())
+  type        CashFlowType
+  amount      Decimal      @db.Decimal(10, 2)
+  description String
+  date        DateTime
+  createdAt   DateTime     @default(now())
+
+  paymentId   String?      @unique
+  expenseId   String?      @unique
+
+  payment     Payment?     @relation(fields: [paymentId], references: [id])
+  expense     Expense?     @relation(fields: [expenseId], references: [id])
+
+  @@map("cash_flows")
+}
+
+model FeeSetting { // Taxas padrão por tipo de jogador (editáveis)
+  id        String     @id @default(uuid())
+  type      PlayerType @unique
+  amount    Decimal    @db.Decimal(10, 2)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("fee_settings")
+}
