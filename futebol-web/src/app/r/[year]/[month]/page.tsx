@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi } from "@/lib/services";
-import { monthName, normalizeSearch, sortByPtName } from "@/lib/format";
+import { monthName, filterSortByName, NAME_SEARCH_PLACEHOLDER } from "@/lib/format";
 import { MonthlyReportView } from "@/components/reports/MonthlyReportView";
 
 export default function PublicReportPage() {
@@ -21,24 +21,13 @@ export default function PublicReportPage() {
     enabled: Number.isInteger(year) && Number.isInteger(month) && token.length > 0,
   });
 
-  const query = normalizeSearch(search);
   const paid = useMemo(
-    () =>
-      [...(data?.paid ?? [])]
-        .filter((item) =>
-          query ? normalizeSearch(item.name).includes(query) : true
-        )
-        .sort((left, right) => sortByPtName(left.name, right.name)),
-    [data?.paid, query]
+    () => filterSortByName(data?.paid ?? [], search, (item) => item.name),
+    [data?.paid, search]
   );
   const owing = useMemo(
-    () =>
-      [...(data?.owing ?? [])]
-        .filter((item) =>
-          query ? normalizeSearch(item.name).includes(query) : true
-        )
-        .sort((left, right) => sortByPtName(left.name, right.name)),
-    [data?.owing, query]
+    () => filterSortByName(data?.owing ?? [], search, (item) => item.name),
+    [data?.owing, search]
   );
 
   const invalidLink = !token || !Number.isInteger(year) || !Number.isInteger(month);
@@ -70,7 +59,7 @@ export default function PublicReportPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ney, Duda, Pedro..."
+            placeholder={NAME_SEARCH_PLACEHOLDER}
           />
         </div>
       </div>

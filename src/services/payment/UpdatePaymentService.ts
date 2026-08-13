@@ -1,5 +1,6 @@
 import prismaClient from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
+import { paymentPlayerInclude, withRemaining } from "../match/matchInclude";
 
 interface UpdatePaymentRequest {
   payment_id: string;
@@ -42,14 +43,12 @@ class UpdatePaymentService {
     let nextStatus = payment.status;
     let paidAt = payment.paidAt;
 
-    if (payment.status !== PaymentStatus.CANCELLED) {
-      if (paidAmount >= nextAmount && paidAmount > 0) {
-        nextStatus = PaymentStatus.PAID;
-        paidAt = paidAt ?? new Date();
-      } else if (payment.status === PaymentStatus.PAID && paidAmount < nextAmount) {
-        nextStatus = PaymentStatus.PENDING;
-        paidAt = null;
-      }
+    if (paidAmount >= nextAmount && paidAmount > 0) {
+      nextStatus = PaymentStatus.PAID;
+      paidAt = paidAt ?? new Date();
+    } else if (payment.status === PaymentStatus.PAID && paidAmount < nextAmount) {
+      nextStatus = PaymentStatus.PENDING;
+      paidAt = null;
     }
 
     const paymentUpdated = await prismaClient.payment.update({
@@ -60,23 +59,10 @@ class UpdatePaymentService {
         status: nextStatus,
         paidAt,
       },
-      include: {
-        player: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+      include: paymentPlayerInclude,
     });
 
-    return {
-      ...paymentUpdated,
-      remaining: Number(
-        (Number(paymentUpdated.amount) - Number(paymentUpdated.paidAmount)).toFixed(2)
-      ),
-    };
+    return withRemaining(paymentUpdated);
   }
 }
 

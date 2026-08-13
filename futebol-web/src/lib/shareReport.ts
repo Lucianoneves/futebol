@@ -1,4 +1,5 @@
 import { monthName } from "./format";
+import { reportsApi } from "./services";
 
 export type ReportShare = {
   year: number;
@@ -32,4 +33,30 @@ export function openWhatsApp(text: string) {
     "_blank",
     "noopener,noreferrer"
   );
+}
+
+export function shareSuccessMessage(url: string, copied: boolean) {
+  const local = isLocalShareUrl(url)
+    ? " No celular do grupo, publique o painel ou abra pelo IP da rede — localhost não abre fora deste computador."
+    : "";
+  return copied
+    ? `Link copiado.${local}`
+    : `WhatsApp aberto com o link.${local}`;
+}
+
+export async function resolvePublicReportUrl(year: number, month: number) {
+  const share = await reportsApi.share(year, month);
+  return publicReportUrl(share.year, share.month, share.token);
+}
+
+export async function copyPublicReportLink(year: number, month: number) {
+  const url = await resolvePublicReportUrl(year, month);
+  await navigator.clipboard.writeText(url);
+  return shareSuccessMessage(url, true);
+}
+
+export async function sendPublicReportWhatsApp(year: number, month: number) {
+  const url = await resolvePublicReportUrl(year, month);
+  openWhatsApp(whatsAppReportLinkText(year, month, url));
+  return shareSuccessMessage(url, false);
 }

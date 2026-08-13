@@ -2,6 +2,7 @@ import prismaClient from "../../prisma";
 import { CashFlowType, PaymentStatus, PlayerType } from "../../generated/prisma/enums";
 import { competenceLabel, nextCompetence } from "../../utils/date";
 import { feeFromPlayer } from "../player/playerFees";
+import { paymentPlayerInclude, withRemaining } from "../match/matchInclude";
 
 interface AddPaymentValueRequest {
   payment_id: string;
@@ -92,15 +93,7 @@ class AddPaymentValueService {
             : {}
           : {}),
       },
-      include: {
-        player: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+      include: paymentPlayerInclude,
     });
 
     if (payment.cashFlow && nextPaid <= 0) {
@@ -110,10 +103,7 @@ class AddPaymentValueService {
     }
 
     return {
-      ...paymentUpdated,
-      remaining: Number(
-        (Number(paymentUpdated.amount) - Number(paymentUpdated.paidAmount)).toFixed(2)
-      ),
+      ...withRemaining(paymentUpdated),
       carry_over: [],
     };
   }
@@ -152,9 +142,7 @@ class AddPaymentValueService {
         throw new Error("Pagamento não encontrado");
       }
 
-      const remaining = Number(
-        (Number(current.amount) - Number(current.paidAmount)).toFixed(2)
-      );
+      const remaining = withRemaining(current).remaining;
 
       if (remaining <= 0) {
         if (!canCarry) {
@@ -198,15 +186,7 @@ class AddPaymentValueService {
 
     const paymentUpdated = await prismaClient.payment.findFirst({
       where: { id: origin.id },
-      include: {
-        player: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+      include: paymentPlayerInclude,
     });
 
     if (!paymentUpdated) {
@@ -214,10 +194,7 @@ class AddPaymentValueService {
     }
 
     return {
-      ...paymentUpdated,
-      remaining: Number(
-        (Number(paymentUpdated.amount) - Number(paymentUpdated.paidAmount)).toFixed(2)
-      ),
+      ...withRemaining(paymentUpdated),
       carry_over,
     };
   }

@@ -1,4 +1,5 @@
-import prismaClient from "../../prisma";
+import prismaClient, { expenseInclude } from "../../prisma";
+import { parseSpentAt } from "../../utils/date";
 
 interface UpdateExpenseRequest {
   expense_id: string;
@@ -45,11 +46,9 @@ class UpdateExpenseService {
       nextType = expenseType;
     }
 
-    const nextSpentAt = spentAt ? new Date(spentAt) : expense.spentAt;
-
-    if (spentAt && Number.isNaN(nextSpentAt.getTime())) {
-      throw new Error("Data da despesa inválida");
-    }
+    const nextSpentAt = spentAt
+      ? parseSpentAt(spentAt)
+      : expense.spentAt;
 
     const nextAmount = amount !== undefined ? amount : expense.amount;
 
@@ -72,10 +71,7 @@ class UpdateExpenseService {
             }
           : {}),
       },
-      include: {
-        expenseType: true,
-        cashFlow: true,
-      },
+      include: expenseInclude,
     });
 
     return expenseUpdated;

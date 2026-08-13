@@ -1,8 +1,7 @@
 import { z } from "zod";
+import { playerTypeSchema } from "./common";
 
 export const updateFeeSettingSchema = z.object({
-  type: z.enum(["MONTHLY", "CASUAL"], {
-    message: "Tipo deve ser MONTHLY ou CASUAL",
-  }),
+  type: playerTypeSchema,
   amount: z.coerce.number().positive("Valor da taxa inválido"),
 });

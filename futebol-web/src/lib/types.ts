@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "USER";
+export type Role = "ADMIN" | "USER" | "PLAYER";
 export type PlayerType = "MONTHLY" | "CASUAL";
 export type PaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED" | "MISSING";
 
@@ -7,6 +7,7 @@ export type Session = {
   name: string;
   email: string;
   role: Role;
+  playerId?: string | null;
   token: string;
 };
 
@@ -19,6 +20,8 @@ export type Player = {
   monthlyFee: string | number | null;
   casualFee: string | number | null;
   active: boolean;
+  hasAccess?: boolean;
+  accessEmail?: string | null;
 };
 
 export type WhatsAppImportRow = {
@@ -98,6 +101,44 @@ export type Expense = {
   expenseType?: ExpenseType;
 };
 
+export type MatchPlayer = {
+  id: string;
+  matchId: string;
+  playerId: string;
+  player?: {
+    id: string;
+    name: string;
+    type: PlayerType;
+  };
+};
+
+export type MatchShare = {
+  id: string;
+  matchId: string;
+  playerId: string;
+  amount: string | number;
+  paidAmount: string | number;
+  status: PaymentStatus;
+  paidAt: string | null;
+  remaining?: number;
+  player?: {
+    id: string;
+    name: string;
+    type: PlayerType;
+  };
+};
+
+export type Match = {
+  id: string;
+  playedOn: string;
+  notes: string | null;
+  players: MatchPlayer[];
+  shares: MatchShare[];
+  total?: number;
+  player_count?: number;
+  already_existed?: boolean;
+};
+
 export type FeeSetting = {
   id: string;
   type: PlayerType;
@@ -109,10 +150,13 @@ export type BalanceDashboard = {
   filter: { year: number | null; month: number | null };
   income: number;
   outcome: number;
+  prepaid?: number;
+  monthBalance?: number;
+  remaining?: number;
   balance: number;
   transactions: Array<{
     id: string;
-    type: "INCOME" | "OUTCOME";
+    type: "INCOME" | "OUTCOME" | "PREPAID";
     amount: number;
     description: string;
     date: string;
@@ -148,4 +192,56 @@ export type MonthlyReport = {
     status: PaymentStatus;
     paidAt: string | null;
   }>;
+};
+
+export type PlayerYearHistory = {
+  player: {
+    id: string;
+    name: string;
+    type: PlayerType;
+    active: boolean;
+  };
+  year: number;
+  overdue_day: number;
+  months: Array<{
+    month: number;
+    payment: {
+      id: string;
+      amount: number;
+      paidAmount: number;
+      remaining: number;
+      status: PaymentStatus;
+      paidAt: string | null;
+    } | null;
+  }>;
+};
+
+export type PlayerSituation = "PAID" | "PENDING" | "OVERDUE";
+
+export type PlayerShareItem = {
+  id: string;
+  matchId?: string;
+  playedOn: string;
+  amount: number;
+  paidAmount: number;
+  status: PaymentStatus;
+  paidAt: string | null;
+  remaining?: number;
+};
+
+export type PlayerStatus = {
+  player: {
+    id: string;
+    name: string;
+    type: PlayerType;
+    active: boolean;
+  };
+  year: number;
+  month: number;
+  overdue_day: number;
+  situation: PlayerSituation;
+  payment: PlayerYearHistory["months"][number]["payment"];
+  months: PlayerYearHistory["months"];
+  month_shares: PlayerShareItem[];
+  open_shares: PlayerShareItem[];
 };

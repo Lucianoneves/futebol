@@ -8,10 +8,26 @@ import type {
   Payment,
   Player,
   PlayerType,
+  PlayerYearHistory,
   Session,
   WhatsAppImportResult,
   GenerateMonthlyPaymentsResult,
+  Match,
+  MatchShare,
+  PlayerStatus,
+  PlayerShareItem,
 } from "./types";
+
+function toQuery(params: Record<string, string | number | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") {
+      search.set(key, String(value));
+    }
+  }
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
 
 export const authApi = {
   login: (email: string, password: string) =>
@@ -47,6 +63,13 @@ export const playersApi = {
   ) => api<Player>(`/players/${id}`, { method: "PUT", body: data }),
   deactivate: (id: string) =>
     api<Player>(`/players/${id}`, { method: "DELETE" }),
+  history: (id: string, year: number) =>
+    api<PlayerYearHistory>(`/players/${id}/history?year=${year}`),
+  grantAccess: (id: string, data: { email: string; password: string }) =>
+    api<{ id: string; email: string; role: string; playerId: string | null }>(
+      `/players/${id}/access`,
+      { method: "POST", body: data }
+    ),
   importWhatsApp: (data: {
     text: string;
     year: number;
@@ -65,15 +88,7 @@ export const paymentsApi = {
     year?: number;
     month?: number;
     status?: string;
-  }) => {
-    const search = new URLSearchParams();
-    if (params?.player_id) search.set("player_id", params.player_id);
-    if (params?.year) search.set("year", String(params.year));
-    if (params?.month) search.set("month", String(params.month));
-    if (params?.status) search.set("status", params.status);
-    const query = search.toString();
-    return api<Payment[]>(`/payments${query ? `?${query}` : ""}`);
-  },
+  }) => api<Payment[]>(`/payments${toQuery(params ?? {})}`),
   create: (data: {
     player_id: string;
     year: number;
@@ -100,12 +115,12 @@ export const paymentsApi = {
 };
 
 export const expensesApi = {
-  list: (expense_type_id?: string) => {
-    const query = expense_type_id
-      ? `?expense_type_id=${expense_type_id}`
-      : "";
-    return api<Expense[]>(`/expenses${query}`);
-  },
+  list: (params?: {
+    expense_type_id?: string;
+    spentAt?: string;
+    year?: number;
+    month?: number;
+  }) => api<Expense[]>(`/expenses${toQuery(params ?? {})}`),
   create: (data: {
     expense_type_id: string;
     amount: number;
@@ -157,14 +172,31 @@ export const reportsApi = {
   },
 };
 
-export const dashboardApi = {
-  balance: (year?: number, month?: number) => {
-    const search = new URLSearchParams();
-    if (year) search.set("year", String(year));
-    if (month) search.set("month", String(month));
-    const query = search.toString();
-    return api<BalanceDashboard>(
-      `/dashboard/balance${query ? `?${query}` : ""}`
-    );
+export const matchesApi = {
+  list: (playedOn?: string) => {
+    const query = playedOn ? `?playedOn=${playedOn}` : "";
+    return api<Match[]>(`/matches${query}`);
   },
+  upsert: (data: {
+    playedOn: string;
+    player_ids: string[];
+    notes?: string;
+  }) => api<Match>("/matches", { method: "POST", body: data }),
+  generateShares: (id: string) =>
+    api<Match>(`/matches/${id}/shares`, { method: "POST" }),
+  markSharePaid: (id: string) =>
+    api<MatchShare>(`/match-shares/${id}/paid`, { method: "PATCH" }),
+  cancelShare: (id: string) =>
+    api<MatchShare>(`/match-shares/${id}/cancel`, { method: "PATCH" }),
+};
+
+export const meApi = {
+  status: (year?: number, month?: number) =>
+    api<PlayerStatus>(`/me/status${toQuery({ year, month })}`),
+  shares: () => api<PlayerShareItem[]>("/me/shares"),
+};
+
+export const dashboardApi = {
+  balance: (year?: number, month?: number) =>
+    api<BalanceDashboard>(`/dashboard/balance${toQuery({ year, month })}`),
 };

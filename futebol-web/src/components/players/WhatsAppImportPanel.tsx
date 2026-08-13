@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { playersApi } from "@/lib/services";
-import { money, PLAYER_TYPE_LABEL } from "@/lib/format";
+import { money, PLAYER_TYPE_LABEL, currentYearMonth } from "@/lib/format";
 import { ApiError } from "@/lib/api";
 import type { WhatsAppImportResult, WhatsAppImportRow } from "@/lib/types";
 
@@ -25,10 +25,10 @@ function paymentActionLabel(row: WhatsAppImportRow) {
 
 export function WhatsAppImportPanel() {
   const queryClient = useQueryClient();
-  const now = useMemo(() => new Date(), []);
+  const { year: initialYear, month: initialMonth } = currentYearMonth();
   const [text, setText] = useState("");
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(initialYear);
+  const [month, setMonth] = useState(initialMonth);
   const [error, setError] = useState("");
   const [result, setResult] = useState<WhatsAppImportResult | null>(null);
 
@@ -48,7 +48,7 @@ export function WhatsAppImportPanel() {
       await queryClient.invalidateQueries({ queryKey: ["players"] });
       await queryClient.invalidateQueries({ queryKey: ["payments"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      await queryClient.invalidateQueries({ queryKey: ["reports"] });
+      await queryClient.invalidateQueries({ queryKey: ["report-monthly"] });
     },
   });
 

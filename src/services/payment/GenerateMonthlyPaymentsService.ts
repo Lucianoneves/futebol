@@ -1,6 +1,7 @@
 import prismaClient from "../../prisma";
 import { PlayerType } from "../../generated/prisma/enums";
 import { CreatePaymentService } from "./CreatePaymentService";
+import { assertYearMonth } from "../../utils/date";
 
 interface GenerateMonthlyPaymentsRequest {
   year: number;
@@ -9,9 +10,7 @@ interface GenerateMonthlyPaymentsRequest {
 
 class GenerateMonthlyPaymentsService {
   async execute({ year, month }: GenerateMonthlyPaymentsRequest) {
-    if (!year || !month || month < 1 || month > 12) {
-      throw new Error("Informe o mês e o ano da cobrança");
-    }
+    assertYearMonth(year, month, "Informe o mês e o ano da cobrança");
 
     const players = await prismaClient.player.findMany({
       where: {

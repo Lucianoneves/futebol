@@ -3,6 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
+import {
+  Drawer,
+  DrawerBody,
+  DrawerCloseButton,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerOverlay,
+} from "@/components/ui/Drawer";
 
 const links = [
   { href: "/dashboard", label: "Dashboard" },
@@ -13,18 +22,41 @@ const links = [
   { href: "/reports", label: "Relatórios" },
 ];
 
-export function Sidebar() {
+type SidebarProps = {
+  isOpen: boolean;
+  onClose: () => void;
+};
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  return (
+    <>
+      <aside className="sidebar sidebar-static">
+        <SidebarInner onNavigate={undefined} />
+      </aside>
+
+      <Drawer isOpen={isOpen} onClose={onClose}>
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <SidebarInner onNavigate={onClose} />
+        </DrawerContent>
+      </Drawer>
+    </>
+  );
+}
+
+function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user, logout, isAdmin } = useAuth();
 
   return (
-    <aside className="sidebar">
-      <div className="brand-block">
+    <>
+      <DrawerHeader>
         <p className="brand">FUTEBOL</p>
         <p className="brand-sub">Gestão do time</p>
-      </div>
+      </DrawerHeader>
 
-      <nav className="nav">
+      <DrawerBody>
         {links.map((link) => {
           const active = (pathname ?? "").startsWith(link.href);
           return (
@@ -32,20 +64,21 @@ export function Sidebar() {
               key={link.href}
               href={link.href}
               className={`nav-link ${active ? "active" : ""}`}
+              onClick={onNavigate}
             >
               {link.label}
             </Link>
           );
         })}
-      </nav>
+      </DrawerBody>
 
-      <div className="sidebar-footer">
+      <DrawerFooter>
         <p className="user-name">{user?.name}</p>
         <p className="user-role">{isAdmin ? "Administrador" : "Usuário"}</p>
         <button type="button" className="btn-ghost" onClick={logout}>
           Sair
         </button>
-      </div>
-    </aside>
+      </DrawerFooter>
+    </>
   );
 }

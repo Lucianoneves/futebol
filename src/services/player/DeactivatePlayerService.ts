@@ -29,6 +29,11 @@ class DeactivatePlayerService {
       },
     });
 
+    await prismaClient.user.updateMany({
+      where: { playerId: player_id },
+      data: { active: false },
+    });
+
     return playerDeactivated;
   }
 }

@@ -1,5 +1,7 @@
 import prismaClient from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
+import { ApplyOverduePaymentsService } from "../payment/ApplyOverduePaymentsService";
+import { assertYearMonth } from "../../utils/date";
 
 interface MonthlyReportRequest {
   year: number;
@@ -8,13 +10,10 @@ interface MonthlyReportRequest {
 
 class MonthlyReportService {
   async execute({ year, month }: MonthlyReportRequest) {
-    if (!year || !month) {
-      throw new Error("Ano e mês são obrigatórios");
-    }
+    assertYearMonth(year, month);
 
-    if (month < 1 || month > 12) {
-      throw new Error("Mês deve ser entre 1 e 12");
-    }
+    const applyOverduePaymentsService = new ApplyOverduePaymentsService();
+    await applyOverduePaymentsService.execute();
 
     const players = await prismaClient.player.findMany({
       where: { active: true },

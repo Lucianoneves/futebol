@@ -4,11 +4,17 @@ import { AuthUserController } from "./controllers/user/AuthUserController";
 import { DetailUserController } from "./controllers/user/DetailUserController";
 import { isAuthenticated } from "./middlewares/isAuthenticated";
 import { isAdmin } from "./middlewares/isAdmin";
+import { isStaff } from "./middlewares/isStaff";
+import { isPlayer } from "./middlewares/isPlayer";
 import { validate } from "./middlewares/validate";
 import { UpdateUserController } from "./controllers/user/UpdateUserController";
 import { CreatePlayerController } from "./controllers/player/CreatePlayerController";
 import { ListPlayerController } from "./controllers/player/ListPlayerController";
 import { DetailPlayerController } from "./controllers/player/DetailPlayerController";
+import { PlayerYearHistoryController } from "./controllers/player/PlayerYearHistoryController";
+import { GrantPlayerAccessController } from "./controllers/player/GrantPlayerAccessController";
+import { PlayerStatusController } from "./controllers/player/PlayerStatusController";
+import { ListPlayerShareController } from "./controllers/player/ListPlayerShareController";
 import { UpdatePlayerController } from "./controllers/player/UpdatePlayerController";
 import { DeactivatePlayerController } from "./controllers/player/DeactivatePlayerController";
 import { ImportWhatsAppPlayerListController } from "./controllers/import/ImportWhatsAppPlayerListController";
@@ -34,6 +40,11 @@ import { MonthlyReportController } from "./controllers/report/MonthlyReportContr
 import { ShareMonthlyReportController } from "./controllers/report/ShareMonthlyReportController";
 import { PublicMonthlyReportController } from "./controllers/report/PublicMonthlyReportController";
 import { BalanceDashboardController } from "./controllers/dashboard/BalanceDashboardController";
+import { UpsertMatchController } from "./controllers/match/UpsertMatchController";
+import { ListMatchController } from "./controllers/match/ListMatchController";
+import { GenerateMatchSharesController } from "./controllers/match/GenerateMatchSharesController";
+import { MarkMatchSharePaidController } from "./controllers/match/MarkMatchSharePaidController";
+import { CancelMatchShareController } from "./controllers/match/CancelMatchShareController";
 import {
   authUserSchema,
   createUserSchema,
@@ -44,6 +55,8 @@ import {
   playerIdParamsSchema,
   updatePlayerSchema,
   importWhatsAppListSchema,
+  playerHistoryQuerySchema,
+  grantPlayerAccessSchema,
 } from "./schemas/player.schemas";
 import {
   addPaymentValueSchema,
@@ -64,6 +77,12 @@ import {
   monthlyReportQuerySchema,
   publicMonthlyReportQuerySchema,
 } from "./schemas/report.schemas";
+import {
+  listMatchQuerySchema,
+  matchIdParamsSchema,
+  matchShareIdParamsSchema,
+  upsertMatchSchema,
+} from "./schemas/match.schemas";
 
 const router = Router();
 
@@ -78,9 +97,22 @@ router.post(
   new AuthUserController().handle
 ); // Autenticar usuário
 router.get("/me", isAuthenticated, new DetailUserController().handle); // Detalhar usuário
+router.get(
+  "/me/status",
+  isAuthenticated,
+  isPlayer,
+  new PlayerStatusController().handle
+); // Situação do jogador logado
+router.get(
+  "/me/shares",
+  isAuthenticated,
+  isPlayer,
+  new ListPlayerShareController().handle
+); // Rateios do jogador logado
 router.put(
   "/users",
   isAuthenticated,
+  isStaff,
   validate(updateUserSchema),
   new UpdateUserController().handle
 ); // Atualizar usuário
@@ -93,10 +125,24 @@ router.post(
   validate(createPlayerSchema),
   new CreatePlayerController().handle
 ); // Criar jogador
-router.get("/players", isAuthenticated, new ListPlayerController().handle); // Listar jogadores
+router.get(
+  "/players",
+  isAuthenticated,
+  isStaff,
+  new ListPlayerController().handle
+); // Listar jogadores
+router.get(
+  "/players/:id/history",
+  isAuthenticated,
+  isStaff,
+  validate(playerIdParamsSchema, "params"),
+  validate(playerHistoryQuerySchema, "query"),
+  new PlayerYearHistoryController().handle
+); // Histórico anual do jogador
 router.get(
   "/players/:id",
   isAuthenticated,
+  isStaff,
   validate(playerIdParamsSchema, "params"),
   new DetailPlayerController().handle
 ); // Buscar jogador por id
@@ -116,6 +162,14 @@ router.delete(
   new DeactivatePlayerController().handle
 ); // Desativar jogador
 router.post(
+  "/players/:id/access",
+  isAuthenticated,
+  isAdmin,
+  validate(playerIdParamsSchema, "params"),
+  validate(grantPlayerAccessSchema),
+  new GrantPlayerAccessController().handle
+); // Liberar login do jogador
+router.post(
   "/imports/whatsapp",
   isAuthenticated,
   isAdmin,
@@ -124,7 +178,12 @@ router.post(
 ); // Importar lista colada do WhatsApp
 
 // ------------- Fees -------------
-router.get("/fees", isAuthenticated, new ListFeeSettingController().handle); // Listar taxas
+router.get(
+  "/fees",
+  isAuthenticated,
+  isStaff,
+  new ListFeeSettingController().handle
+); // Listar taxas
 router.put(
   "/fees",
   isAuthenticated,
@@ -148,10 +207,16 @@ router.post(
   validate(generateMonthlyPaymentsSchema),
   new GenerateMonthlyPaymentsController().handle
 ); // Gerar cobrança de todos os mensalistas do mês
-router.get("/payments", isAuthenticated, new ListPaymentController().handle); // Listar pagamentos
+router.get(
+  "/payments",
+  isAuthenticated,
+  isStaff,
+  new ListPaymentController().handle
+); // Listar pagamentos
 router.get(
   "/payments/:id",
   isAuthenticated,
+  isStaff,
   validate(paymentIdParamsSchema, "params"),
   new DetailPaymentController().handle
 ); // Detalhar pagamento
@@ -197,6 +262,7 @@ router.patch(
 router.get(
   "/expense-types",
   isAuthenticated,
+  isStaff,
   new ListExpenseTypeController().handle
 ); // Listar tipos de despesa
 router.post(
@@ -236,16 +302,55 @@ router.delete(
   new DeleteExpenseController().handle
 ); // Remover despesa
 
+// ------------- Pelada / Rateio -------------
+router.get(
+  "/matches",
+  isAuthenticated,
+  isStaff,
+  validate(listMatchQuerySchema, "query"),
+  new ListMatchController().handle
+); // Listar pelada do dia
+router.post(
+  "/matches",
+  isAuthenticated,
+  isAdmin,
+  validate(upsertMatchSchema),
+  new UpsertMatchController().handle
+); // Salvar quem jogou
+router.post(
+  "/matches/:id/shares",
+  isAuthenticated,
+  isAdmin,
+  validate(matchIdParamsSchema, "params"),
+  new GenerateMatchSharesController().handle
+); // Gerar cobrança do rateio
+router.patch(
+  "/match-shares/:id/paid",
+  isAuthenticated,
+  isAdmin,
+  validate(matchShareIdParamsSchema, "params"),
+  new MarkMatchSharePaidController().handle
+); // Quitar rateio
+router.patch(
+  "/match-shares/:id/cancel",
+  isAuthenticated,
+  isAdmin,
+  validate(matchShareIdParamsSchema, "params"),
+  new CancelMatchShareController().handle
+); // Cancelar rateio
+
 // ------------- Reports / Dashboard -------------
 router.get(
   "/reports/monthly",
   isAuthenticated,
+  isStaff,
   validate(monthlyReportQuerySchema, "query"),
   new MonthlyReportController().handle
 ); // Relatório mensal
 router.get(
   "/reports/share",
   isAuthenticated,
+  isStaff,
   validate(monthlyReportQuerySchema, "query"),
   new ShareMonthlyReportController().handle
 ); // Token do link público
@@ -257,6 +362,7 @@ router.get(
 router.get(
   "/dashboard/balance",
   isAuthenticated,
+  isStaff,
   validate(balanceDashboardQuerySchema, "query"),
   new BalanceDashboardController().handle
 ); // Dashboard de saldo

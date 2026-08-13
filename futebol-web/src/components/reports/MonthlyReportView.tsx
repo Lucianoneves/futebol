@@ -3,6 +3,7 @@ import {
   PAYMENT_STATUS_LABEL,
   PLAYER_TYPE_LABEL,
   paymentStatusClass,
+  playerTypeClass,
 } from "@/lib/format";
 import type { MonthlyReport } from "@/lib/types";
 
@@ -66,9 +67,20 @@ export function MonthlyReportView({
               </thead>
               <tbody>
                 {paid.map((item, index) => (
-                  <tr key={item.player_id || `${item.name}-paid-${index}`}>
+                  <tr
+                    key={item.player_id || `${item.name}-paid-${index}`}
+                    className={
+                      item.type === "CASUAL"
+                        ? "report-row-casual"
+                        : "report-row-monthly"
+                    }
+                  >
                     <td>{item.name}</td>
-                    <td>{PLAYER_TYPE_LABEL[item.type] || item.type}</td>
+                    <td>
+                      <span className={`badge ${playerTypeClass(item.type)}`}>
+                        {PLAYER_TYPE_LABEL[item.type] || item.type}
+                      </span>
+                    </td>
                     <td>{money(item.paidAmount ?? item.amount)}</td>
                   </tr>
                 ))}
@@ -95,8 +107,25 @@ export function MonthlyReportView({
               </thead>
               <tbody>
                 {owing.map((item, index) => (
-                  <tr key={item.player_id || `${item.name}-owing-${index}`}>
-                    <td>{item.name}</td>
+                  <tr
+                    key={item.player_id || `${item.name}-owing-${index}`}
+                    className={
+                      item.type === "CASUAL"
+                        ? "report-row-casual"
+                        : "report-row-monthly"
+                    }
+                  >
+                    <td>
+                      {item.name}
+                      {item.type === "CASUAL" ? (
+                        <span
+                          className="badge casual"
+                          style={{ marginLeft: 8 }}
+                        >
+                          Convidado
+                        </span>
+                      ) : null}
+                    </td>
                     <td>
                       <span className={`badge ${paymentStatusClass(item.status)}`}>
                         {PAYMENT_STATUS_LABEL[item.status] || item.status}

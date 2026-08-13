@@ -1,28 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { reportsApi } from "@/lib/services";
-import { normalizeSearch, sortByPtName } from "@/lib/format";
+import { dashboardApi, reportsApi } from "@/lib/services";
 import {
-  copyPngToClipboard,
-  downloadPng,
+  currentYearMonth,
+  filterSortByName,
+  NAME_SEARCH_PLACEHOLDER,
+} from "@/lib/format";
+import {
+  copyReportImageWithFallback,
   renderReportPng,
   reportFromMonthly,
   reportImageFilename,
 } from "@/lib/reportImage";
+import { downloadExcelReport, downloadPdfReport } from "@/lib/exportReport";
 import { MonthlyReportView } from "@/components/reports/MonthlyReportView";
 import {
-  isLocalShareUrl,
-  openWhatsApp,
-  publicReportUrl,
-  whatsAppReportLinkText,
+  copyPublicReportLink,
+  sendPublicReportWhatsApp,
 } from "@/lib/shareReport";
 
 export default function ReportsPage() {
-  const now = useMemo(() => new Date(), []);
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const { year: initialYear, month: initialMonth } = currentYearMonth();
+  const [year, setYear] = useState(initialYear);
+  const [month, setMonth] = useState(initialMonth);
   const [search, setSearch] = useState("");
   const [info, setInfo] = useState("");
   const [copyError, setCopyError] = useState("");
@@ -33,43 +35,18 @@ export default function ReportsPage() {
     queryFn: () => reportsApi.monthly(year, month),
   });
 
-  const query = normalizeSearch(search);
-  const paid = [...(data?.paid ?? [])]
-    .filter((item) =>
-      query ? normalizeSearch(item.name).includes(query) : true
-    )
-    .sort((left, right) => sortByPtName(left.name, right.name));
-  const owing = [...(data?.owing ?? [])]
-    .filter((item) =>
-      query ? normalizeSearch(item.name).includes(query) : true
-    )
-    .sort((left, right) => sortByPtName(left.name, right.name));
+  const { data: finance } = useQuery({
+    queryKey: ["dashboard", year, month],
+    queryFn: () => dashboardApi.balance(year, month),
+  });
 
-  async function shareImage() {
-    if (!data) throw new Error("Relatório ainda não carregou");
-    return renderReportPng(reportFromMonthly(data));
-  }
-
-  async function resolveShareUrl() {
-    const share = await reportsApi.share(year, month);
-    return publicReportUrl(share.year, share.month, share.token);
-  }
-
-  function shareSuccessMessage(url: string, copied: boolean) {
-    const local = isLocalShareUrl(url)
-      ? " No celular do grupo, publique o painel ou abra pelo IP da rede — localhost não abre fora deste computador."
-      : "";
-    return copied
-      ? `Link copiado.${local}`
-      : `WhatsApp aberto com o link.${local}`;
-  }
+  const paid = filterSortByName(data?.paid ?? [], search, (item) => item.name);
+  const owing = filterSortByName(data?.owing ?? [], search, (item) => item.name);
 
   async function handleCopyLink() {
     setSharing(true);
     try {
-      const url = await resolveShareUrl();
-      await navigator.clipboard.writeText(url);
-      setInfo(shareSuccessMessage(url, true));
+      setInfo(await copyPublicReportLink(year, month));
       setCopyError("");
     } catch {
       setCopyError("Não foi possível copiar o link.");
@@ -81,9 +58,7 @@ export default function ReportsPage() {
   async function handleSendWhatsApp() {
     setSharing(true);
     try {
-      const url = await resolveShareUrl();
-      openWhatsApp(whatsAppReportLinkText(year, month, url));
-      setInfo(shareSuccessMessage(url, false));
+      setInfo(await sendPublicReportWhatsApp(year, month));
       setCopyError("");
     } catch {
       setCopyError("Não foi possível gerar o link do relatório.");
@@ -92,26 +67,45 @@ export default function ReportsPage() {
     }
   }
 
+  function handleDownloadExcel() {
+    if (!data || !finance) return;
+    try {
+      downloadExcelReport({ report: data, finance });
+      setInfo("Excel baixado.");
+      setCopyError("");
+    } catch {
+      setCopyError("Não foi possível gerar o Excel.");
+    }
+  }
+
+  function handleDownloadPdf() {
+    if (!data || !finance) return;
+    try {
+      downloadPdfReport({ report: data, finance });
+      setInfo("Na janela que abrir, escolha Salvar como PDF.");
+      setCopyError("");
+    } catch (err) {
+      setCopyError(
+        err instanceof Error ? err.message : "Não foi possível gerar o PDF."
+      );
+    }
+  }
+
   async function handleCopyImage() {
     if (!data) return;
     setSharing(true);
-    try {
-      const blob = await shareImage();
-      await copyPngToClipboard(blob);
-      setInfo("Imagem copiada. Cole no WhatsApp (Ctrl+V).");
+    const report = reportFromMonthly(data);
+    const result = await copyReportImageWithFallback(
+      () => renderReportPng(report),
+      reportImageFilename(report)
+    );
+    if (result.ok) {
+      setInfo(result.message);
       setCopyError("");
-    } catch {
-      try {
-        const blob = await shareImage();
-        downloadPng(blob, reportImageFilename(reportFromMonthly(data)));
-        setInfo("Não deu para copiar. A imagem foi baixada para você anexar no WhatsApp.");
-        setCopyError("");
-      } catch {
-        setCopyError("Não foi possível gerar a imagem do relatório.");
-      }
-    } finally {
-      setSharing(false);
+    } else {
+      setCopyError(result.message);
     }
+    setSharing(false);
   }
 
   return (
@@ -119,7 +113,7 @@ export default function ReportsPage() {
       <div className="page-header">
         <div>
           <h1>Relatórios</h1>
-          <p>Quem pagou e quem deve no mês</p>
+          <p>Quem pagou e quem deve no mês · Excel e PDF com arrecadação, despesas e saldo</p>
         </div>
       </div>
 
@@ -147,7 +141,7 @@ export default function ReportsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ney, Duda, Pedro..."
+            placeholder={NAME_SEARCH_PLACEHOLDER}
           />
         </div>
         <button
@@ -173,6 +167,22 @@ export default function ReportsPage() {
           disabled={!data || sharing}
         >
           {sharing ? "Gerando..." : "Copiar imagem"}
+        </button>
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={handleDownloadExcel}
+          disabled={!data || !finance}
+        >
+          Baixar Excel
+        </button>
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={handleDownloadPdf}
+          disabled={!data || !finance}
+        >
+          Baixar PDF
         </button>
       </div>
 

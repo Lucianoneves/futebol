@@ -10,12 +10,25 @@ class ListPlayerService {
       where: {
         ...(active !== undefined && { active }),
       },
+      include: {
+        user: {
+          select: {
+            email: true,
+            active: true,
+            role: true,
+          },
+        },
+      },
       orderBy: {
         name: "asc",
       },
     });
 
-    return players;
+    return players.map(({ user, ...player }) => ({
+      ...player,
+      hasAccess: Boolean(user?.active && user.role === "PLAYER"),
+      accessEmail: user?.email || null,
+    }));
   }
 }
 

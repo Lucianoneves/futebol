@@ -1,5 +1,6 @@
 import prismaClient from "../../prisma";
 import { CashFlowType, PaymentStatus } from "../../generated/prisma/enums";
+import { paymentPlayerInclude } from "../match/matchInclude";
 
 interface MarkPaymentPaidRequest {
   payment_id: string;
@@ -58,15 +59,7 @@ class MarkPaymentPaidService {
               },
             },
       },
-      include: {
-        player: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+      include: paymentPlayerInclude,
     });
 
     return paymentPaid;

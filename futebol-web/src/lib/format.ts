@@ -36,6 +36,13 @@ export function monthLabel(month: number) {
   return padDatePart(month);
 }
 
+export function currentYearMonth(now = new Date()) {
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+  };
+}
+
 export function remainingOf(payment: {
   amount?: string | number | null;
   paidAmount?: string | number | null;
@@ -57,7 +64,43 @@ export function normalizeSearch(value: string) {
     .trim();
 }
 
-export function paymentStatusClass(status: string) {
+export function matchesNameSearch(name: string, query: string) {
+  const normalized = normalizeSearch(query);
+  if (!normalized) return true;
+  return normalizeSearch(name).includes(normalized);
+}
+
+export function filterSortByName<T>(
+  items: T[],
+  query: string,
+  getName: (item: T) => string
+) {
+  return items
+    .filter((item) => matchesNameSearch(getName(item), query))
+    .sort((left, right) => sortByPtName(getName(left), getName(right)));
+}
+
+export function partitionByPlayerType<T>(
+  items: T[],
+  getType: (item: T) => string | undefined
+) {
+  return {
+    monthly: items.filter((item) => getType(item) === "MONTHLY"),
+    casual: items.filter((item) => getType(item) === "CASUAL"),
+  };
+}
+
+export const NAME_SEARCH_PLACEHOLDER = "Ney, Duda, Pedro...";
+
+export const SITUATION_LABEL: Record<string, string> = {
+  PAID: "Em dia",
+  PENDING: "Em aberto",
+  OVERDUE: "Atrasado",
+};
+
+export function paymentStatusClass(
+  status: string
+): "ok" | "warn" | "danger" | "muted" {
   if (status === "PAID") return "ok";
   if (status === "OVERDUE") return "danger";
   if (status === "PENDING") return "warn";
@@ -76,6 +119,22 @@ export const PLAYER_TYPE_LABEL: Record<string, string> = {
   MONTHLY: "Mensalista",
   CASUAL: "Convidado",
 };
+
+export function playerTypeClass(type: string) {
+  return type === "CASUAL" ? "casual" : "monthly";
+}
+
+export function transactionTypeLabel(type: string) {
+  if (type === "INCOME") return "Receita";
+  if (type === "PREPAID") return "Adiantado";
+  return "Despesa";
+}
+
+export function transactionTypeClass(type: string) {
+  if (type === "INCOME") return "ok";
+  if (type === "PREPAID") return "casual";
+  return "danger";
+}
 
 const MONTH_NAMES = [
   "janeiro",

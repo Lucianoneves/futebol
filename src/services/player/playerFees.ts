@@ -37,7 +37,7 @@ export async function ensureFeeSettings() {
   return existing;
 }
 
-export async function getFeeAmountByType(type: PlayerType) {
+async function getFeeAmountByType(type: PlayerType) {
   await ensureFeeSettings();
 
   const setting = await prismaClient.feeSetting.findUnique({
@@ -57,5 +57,19 @@ export async function resolvePlayerFees(type: PlayerType) {
   return {
     monthlyFee: type === PlayerType.MONTHLY ? fee : null,
     casualFee: type === PlayerType.CASUAL ? fee : null,
+  };
+}
+
+export function presentFee(fee: {
+  id: string;
+  type: PlayerType;
+  amount: unknown;
+  updatedAt: Date;
+}) {
+  return {
+    id: fee.id,
+    type: fee.type,
+    amount: Number(fee.amount),
+    updatedAt: fee.updatedAt,
   };
 }

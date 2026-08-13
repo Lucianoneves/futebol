@@ -1,4 +1,4 @@
-import prismaClient from "../../prisma";
+import prismaClient, { expenseInclude } from "../../prisma";
 
 interface DetailExpenseRequest {
   expense_id: string;
@@ -12,10 +12,7 @@ class DetailExpenseService {
 
     const expense = await prismaClient.expense.findFirst({
       where: { id: expense_id },
-      include: {
-        expenseType: true,
-        cashFlow: true,
-      },
+      include: expenseInclude,
     });
 
     if (!expense) {

@@ -4,8 +4,8 @@ import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { playersApi } from "@/lib/services";
-import { money, normalizeSearch, sortByPtName } from "@/lib/format";
-import type { Player, PlayerType } from "@/lib/types";
+import { money, monthName, filterSortByName, partitionByPlayerType, PAYMENT_STATUS_LABEL, paymentStatusClass, NAME_SEARCH_PLACEHOLDER } from "@/lib/format";
+import type { Player, PlayerType, PlayerYearHistory } from "@/lib/types";
 import { ApiError } from "@/lib/api";
 import { WhatsAppImportPanel } from "@/components/players/WhatsAppImportPanel";
 
@@ -16,10 +16,6 @@ const emptyForm = {
   phone: "",
 };
 
-function sortByName(left: Player, right: Player) {
-  return sortByPtName(left.name, right.name);
-}
-
 export default function PlayersPage() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -28,24 +24,27 @@ export default function PlayersPage() {
   const [error, setError] = useState("");
   const [onlyActive, setOnlyActive] = useState(true);
   const [search, setSearch] = useState("");
+  const [historyPlayer, setHistoryPlayer] = useState<Player | null>(null);
+  const [historyYear, setHistoryYear] = useState(new Date().getFullYear());
+  const [accessPlayer, setAccessPlayer] = useState<Player | null>(null);
+  const [accessEmail, setAccessEmail] = useState("");
+  const [accessPassword, setAccessPassword] = useState("");
+  const [accessInfo, setAccessInfo] = useState("");
 
   const { data: players = [], isLoading } = useQuery({
     queryKey: ["players", onlyActive],
     queryFn: () => playersApi.list(onlyActive ? true : undefined),
   });
 
-  const { monthly, casual } = useMemo(() => {
-    const query = normalizeSearch(search);
-    const filtered = players
-      .filter((player) =>
-        query ? normalizeSearch(player.name).includes(query) : true
-      )
-      .sort(sortByName);
+  const { data: history, isLoading: historyLoading } = useQuery({
+    queryKey: ["player-history", historyPlayer?.id, historyYear],
+    queryFn: () => playersApi.history(historyPlayer!.id, historyYear),
+    enabled: Boolean(historyPlayer?.id),
+  });
 
-    return {
-      monthly: filtered.filter((player) => player.type === "MONTHLY"),
-      casual: filtered.filter((player) => player.type === "CASUAL"),
-    };
+  const { monthly, casual } = useMemo(() => {
+    const filtered = filterSortByName(players, search, (player) => player.name);
+    return partitionByPlayerType(filtered, (player) => player.type);
   }, [players, search]);
 
   const createMutation = useMutation({
@@ -83,6 +82,23 @@ export default function PlayersPage() {
     },
   });
 
+  const accessMutation = useMutation({
+    mutationFn: ({
+      id,
+      email,
+      password,
+    }: {
+      id: string;
+      email: string;
+      password: string;
+    }) => playersApi.grantAccess(id, { email, password }),
+    onSuccess: async () => {
+      setAccessPassword("");
+      setAccessInfo("Acesso liberado. O jogador entra em /login e vai para /eu.");
+      await queryClient.invalidateQueries({ queryKey: ["players"] });
+    },
+  });
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -100,6 +116,32 @@ export default function PlayersPage() {
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao salvar jogador");
+    }
+  }
+
+  function startAccess(player: Player) {
+    setAccessPlayer(player);
+    setAccessEmail(player.accessEmail || player.email || "");
+    setAccessPassword("");
+    setAccessInfo("");
+    setError("");
+  }
+
+  async function handleAccess(event: FormEvent) {
+    event.preventDefault();
+    if (!accessPlayer) return;
+    setError("");
+    setAccessInfo("");
+    try {
+      await accessMutation.mutateAsync({
+        id: accessPlayer.id,
+        email: accessEmail,
+        password: accessPassword,
+      });
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Erro ao liberar acesso"
+      );
     }
   }
 
@@ -192,7 +234,7 @@ export default function PlayersPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ney, Duda, Pedro..."
+            placeholder={NAME_SEARCH_PLACEHOLDER}
           />
         </div>
         <label
@@ -220,6 +262,8 @@ export default function PlayersPage() {
           players={monthly}
           isAdmin={isAdmin}
           emptyText="Nenhum mensalista encontrado."
+          onHistory={setHistoryPlayer}
+          onAccess={isAdmin ? startAccess : undefined}
           onEdit={startEdit}
           onDeactivate={(id) => deactivateMutation.mutate(id)}
         />
@@ -228,10 +272,81 @@ export default function PlayersPage() {
           players={casual}
           isAdmin={isAdmin}
           emptyText="Nenhum convidado encontrado."
+          onHistory={setHistoryPlayer}
+          onAccess={isAdmin ? startAccess : undefined}
           onEdit={startEdit}
           onDeactivate={(id) => deactivateMutation.mutate(id)}
         />
       </div>
+
+      {accessPlayer ? (
+        <form className="panel" onSubmit={handleAccess} style={{ marginTop: 16 }}>
+          <div className="page-header" style={{ marginBottom: 12 }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Acesso de {accessPlayer.name}</h2>
+              <p>
+                Libera login no mesmo site. Depois do deploy, o jogador entra e
+                vê só a consulta em /eu.
+              </p>
+            </div>
+            <button
+              className="btn-secondary"
+              type="button"
+              onClick={() => {
+                setAccessPlayer(null);
+                setAccessInfo("");
+              }}
+            >
+              Fechar
+            </button>
+          </div>
+          {accessPlayer.hasAccess ? (
+            <p style={{ color: "var(--ok)" }}>
+              Já tem acesso ({accessPlayer.accessEmail}). Informe uma senha nova
+              para atualizar.
+            </p>
+          ) : null}
+          {accessInfo ? (
+            <p style={{ color: "var(--ok)" }}>{accessInfo}</p>
+          ) : null}
+          {error && accessPlayer ? <div className="error-box">{error}</div> : null}
+          <div className="form-grid">
+            <div className="field">
+              <label>E-mail de login</label>
+              <input
+                type="email"
+                value={accessEmail}
+                onChange={(e) => setAccessEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <label>Senha</label>
+              <input
+                type="password"
+                value={accessPassword}
+                onChange={(e) => setAccessPassword(e.target.value)}
+                minLength={6}
+                required
+              />
+            </div>
+          </div>
+          <button className="btn" type="submit">
+            {accessPlayer.hasAccess ? "Atualizar acesso" : "Liberar acesso"}
+          </button>
+        </form>
+      ) : null}
+
+      {historyPlayer ? (
+        <PlayerHistoryPanel
+          player={historyPlayer}
+          year={historyYear}
+          history={history}
+          loading={historyLoading}
+          onYearChange={setHistoryYear}
+          onClose={() => setHistoryPlayer(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -241,6 +356,8 @@ function PlayerGroup({
   players,
   isAdmin,
   emptyText,
+  onHistory,
+  onAccess,
   onEdit,
   onDeactivate,
 }: {
@@ -248,6 +365,8 @@ function PlayerGroup({
   players: Player[];
   isAdmin: boolean;
   emptyText: string;
+  onHistory: (player: Player) => void;
+  onAccess?: (player: Player) => void;
   onEdit: (player: Player) => void;
   onDeactivate: (id: string) => void;
 }) {
@@ -263,7 +382,7 @@ function PlayerGroup({
               <th>Taxa</th>
               <th>Contato</th>
               <th>Status</th>
-              {isAdmin ? <th>Ações</th> : null}
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -283,36 +402,134 @@ function PlayerGroup({
                   <span className={`badge ${player.active ? "ok" : "muted"}`}>
                     {player.active ? "Ativo" : "Inativo"}
                   </span>
+                  {player.hasAccess ? (
+                    <span className="badge monthly" style={{ marginLeft: 6 }}>
+                      App
+                    </span>
+                  ) : null}
                 </td>
-                {isAdmin ? (
-                  <td>
-                    <div className="actions">
-                      <button
-                        className="btn-secondary"
-                        type="button"
-                        onClick={() => onEdit(player)}
-                      >
-                        Editar
-                      </button>
-                      {player.active ? (
+                <td>
+                  <div className="actions">
+                    <button
+                      className="btn-secondary"
+                      type="button"
+                      onClick={() => onHistory(player)}
+                    >
+                      Histórico
+                    </button>
+                    {isAdmin ? (
+                      <>
+                        {onAccess ? (
+                          <button
+                            className="btn-secondary"
+                            type="button"
+                            onClick={() => onAccess(player)}
+                          >
+                            Acesso
+                          </button>
+                        ) : null}
                         <button
-                          className="btn-danger"
+                          className="btn-secondary"
                           type="button"
-                          onClick={() => onDeactivate(player.id)}
+                          onClick={() => onEdit(player)}
                         >
-                          Desativar
+                          Editar
                         </button>
-                      ) : null}
-                    </div>
-                  </td>
-                ) : null}
+                        {player.active ? (
+                          <button
+                            className="btn-danger"
+                            type="button"
+                            onClick={() => onDeactivate(player.id)}
+                          >
+                            Desativar
+                          </button>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
+                </td>
               </tr>
             ))}
             {players.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 6 : 5}>{emptyText}</td>
+                <td colSpan={6}>{emptyText}</td>
               </tr>
             ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PlayerHistoryPanel({
+  player,
+  year,
+  history,
+  loading,
+  onYearChange,
+  onClose,
+}: {
+  player: Player;
+  year: number;
+  history: PlayerYearHistory | undefined;
+  loading: boolean;
+  onYearChange: (year: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <div className="page-header" style={{ marginBottom: 12 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Histórico de {player.name}</h2>
+          <p>O que pagou em cada mês. Atraso automático no dia 21 do mês seguinte.</p>
+        </div>
+        <button className="btn-secondary" type="button" onClick={onClose}>
+          Fechar
+        </button>
+      </div>
+      <div className="toolbar">
+        <div className="field">
+          <label>Ano</label>
+          <input
+            type="number"
+            value={year}
+            onChange={(e) => onYearChange(Number(e.target.value))}
+          />
+        </div>
+      </div>
+      {loading ? <p>Carregando...</p> : null}
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th>Status</th>
+              <th>Cobrado</th>
+              <th>Pago</th>
+              <th>Falta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(history?.months ?? []).map((item) => (
+              <tr key={item.month}>
+                <td>
+                  {monthName(item.month)}/{year}
+                </td>
+                <td>
+                  {item.payment ? (
+                    <span className={`badge ${paymentStatusClass(item.payment.status)}`}>
+                      {PAYMENT_STATUS_LABEL[item.payment.status] || item.payment.status}
+                    </span>
+                  ) : (
+                    <span className="badge muted">Sem cobrança</span>
+                  )}
+                </td>
+                <td>{item.payment ? money(item.payment.amount) : "-"}</td>
+                <td>{item.payment ? money(item.payment.paidAmount) : "-"}</td>
+                <td>{item.payment ? money(item.payment.remaining) : "-"}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

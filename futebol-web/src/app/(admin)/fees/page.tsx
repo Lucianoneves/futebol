@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { feesApi } from "@/lib/services";
-import { money } from "@/lib/format";
+import { money, PLAYER_TYPE_LABEL } from "@/lib/format";
 import type { PlayerType } from "@/lib/types";
 import { ApiError } from "@/lib/api";
 
@@ -43,7 +43,7 @@ export default function FeesPage() {
       <div className="page-header">
         <div>
           <h1>Taxas</h1>
-          <p>Valores padrão MONTHLY e CASUAL (sem hardcode)</p>
+          <p>Valores padrão de mensalista e convidado</p>
         </div>
       </div>
 
@@ -58,8 +58,8 @@ export default function FeesPage() {
                 value={type}
                 onChange={(e) => setType(e.target.value as PlayerType)}
               >
-                <option value="MONTHLY">MONTHLY</option>
-                <option value="CASUAL">CASUAL</option>
+                <option value="MONTHLY">{PLAYER_TYPE_LABEL.MONTHLY}</option>
+                <option value="CASUAL">{PLAYER_TYPE_LABEL.CASUAL}</option>
               </select>
             </div>
             <div className="field">
@@ -93,7 +93,7 @@ export default function FeesPage() {
             <tbody>
               {fees.map((fee) => (
                 <tr key={fee.id}>
-                  <td>{fee.type}</td>
+                  <td>{PLAYER_TYPE_LABEL[fee.type] || fee.type}</td>
                   <td>{money(fee.amount)}</td>
                   <td>
                     {new Date(fee.updatedAt).toLocaleString("pt-BR")}

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { clearSession, getStoredUser, getToken, saveSession } from "@/lib/auth";
+import { clearSession, getStoredUser, getToken, homePath, saveSession } from "@/lib/auth";
 import { authApi } from "@/lib/services";
 import type { Role, Session } from "@/lib/types";
 
@@ -20,6 +20,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   ready: boolean;
   isAdmin: boolean;
+  isPlayer: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
@@ -49,8 +50,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: session.name,
         email: session.email,
         role: session.role,
+        playerId: session.playerId ?? null,
       });
-      router.replace("/dashboard");
+      router.replace(homePath(session.role));
     },
     [router]
   );
@@ -66,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       ready,
       isAdmin: user?.role === ("ADMIN" as Role),
+      isPlayer: user?.role === ("PLAYER" as Role),
       login,
       logout,
     }),

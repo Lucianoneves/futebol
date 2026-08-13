@@ -3,7 +3,7 @@ import { verify } from "jsonwebtoken";
 
 interface Payload {
   sub: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "PLAYER";
 }
 
 export function isAuthenticated(

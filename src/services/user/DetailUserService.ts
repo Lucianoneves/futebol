@@ -14,7 +14,7 @@ class DetailUserService {
                 name: true,
                 email: true,
                 role: true,
-               
+                playerId: true,
             }
         })
 

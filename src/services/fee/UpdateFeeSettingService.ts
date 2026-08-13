@@ -1,6 +1,6 @@
 import prismaClient from "../../prisma";
 import { PlayerType } from "../../generated/prisma/enums";
-import { ensureFeeSettings } from "../player/playerFees";
+import { ensureFeeSettings, presentFee } from "../player/playerFees";
 
 interface UpdateFeeSettingRequest {
   type: string;
@@ -24,12 +24,7 @@ class UpdateFeeSettingService {
       data: { amount },
     });
 
-    return {
-      id: feeUpdated.id,
-      type: feeUpdated.type,
-      amount: Number(feeUpdated.amount),
-      updatedAt: feeUpdated.updatedAt,
-    };
+    return presentFee(feeUpdated);
   }
 }
 

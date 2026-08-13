@@ -1,4 +1,4 @@
-import type { Session } from "./types";
+import type { Role, Session } from "./types";
 
 const TOKEN_KEY = "futebol_token";
 const USER_KEY = "futebol_user";
@@ -28,6 +28,7 @@ export function saveSession(session: Session) {
       name: session.name,
       email: session.email,
       role: session.role,
+      playerId: session.playerId ?? null,
     })
   );
 }
@@ -35,4 +36,8 @@ export function saveSession(session: Session) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+}
+
+export function homePath(role: Role) {
+  return role === "PLAYER" ? "/eu" : "/dashboard";
 }

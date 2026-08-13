@@ -1,5 +1,6 @@
-import prismaClient from "../../prisma";
+import prismaClient, { expenseInclude } from "../../prisma";
 import { CashFlowType } from "../../generated/prisma/enums";
+import { parseSpentAt } from "../../utils/date";
 
 interface CreateExpenseRequest {
   expense_type_id: string;
@@ -29,11 +30,7 @@ class CreateExpenseService {
       throw new Error("Tipo de despesa não encontrado");
     }
 
-    const date = spentAt ? new Date(spentAt) : new Date();
-
-    if (Number.isNaN(date.getTime())) {
-      throw new Error("Data da despesa inválida");
-    }
+    const date = parseSpentAt(spentAt);
 
     const expense = await prismaClient.expense.create({
       data: {
@@ -50,10 +47,7 @@ class CreateExpenseService {
           },
         },
       },
-      include: {
-        expenseType: true,
-        cashFlow: true,
-      },
+      include: expenseInclude,
     });
 
     return expense;

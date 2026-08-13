@@ -34,6 +34,7 @@ class AuthUserService {
         name: user.name,
         email: user.email,
         role: user.role,
+        playerId: user.playerId,
       },
       process.env.JWT_SECRET as string,
       {
@@ -47,6 +48,7 @@ class AuthUserService {
       name: user.name,
       email: user.email,
       role: user.role,
+      playerId: user.playerId,
       token: token,
     };
   }

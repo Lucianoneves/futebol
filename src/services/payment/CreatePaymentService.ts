@@ -2,6 +2,8 @@ import prismaClient from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
 import { AddPaymentValueService } from "./AddPaymentValueService";
 import { feeFromPlayer } from "../player/playerFees";
+import { assertYearMonth } from "../../utils/date";
+import { paymentPlayerInclude, withRemaining } from "../match/matchInclude";
 
 interface CreatePaymentRequest {
   player_id: string;
@@ -21,13 +23,11 @@ class CreatePaymentService {
     paid_amount,
     notes,
   }: CreatePaymentRequest) {
-    if (!player_id || !year || !month) {
+    if (!player_id) {
       throw new Error("Jogador, ano e mês são obrigatórios");
     }
 
-    if (month < 1 || month > 12) {
-      throw new Error("Mês deve ser entre 1 e 12");
-    }
+    assertYearMonth(year, month, "Jogador, ano e mês são obrigatórios");
 
     const player = await prismaClient.player.findFirst({
       where: { id: player_id },
@@ -53,15 +53,7 @@ class CreatePaymentService {
         year,
         month,
       },
-      include: {
-        player: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+      include: paymentPlayerInclude,
     });
 
     if (existing?.status === PaymentStatus.PAID && !paid_amount) {
@@ -82,15 +74,7 @@ class CreatePaymentService {
           amount: finalAmount,
           notes: notes || existing.notes,
         },
-        include: {
-          player: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-        },
+        include: paymentPlayerInclude,
       });
     } else if (!existing) {
       payment = await prismaClient.payment.create({
@@ -101,29 +85,13 @@ class CreatePaymentService {
           amount: finalAmount,
           notes: notes || null,
         },
-        include: {
-          player: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-        },
+        include: paymentPlayerInclude,
       });
     } else if (notes) {
       payment = await prismaClient.payment.update({
         where: { id: existing.id },
         data: { notes },
-        include: {
-          player: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-        },
+        include: paymentPlayerInclude,
       });
     }
 
@@ -140,10 +108,7 @@ class CreatePaymentService {
     }
 
     return {
-      ...payment,
-      remaining: Number(
-        (Number(payment.amount) - Number(payment.paidAmount || 0)).toFixed(2)
-      ),
+      ...withRemaining(payment),
       already_existed: Boolean(existing && existing.status !== PaymentStatus.CANCELLED),
     };
   }

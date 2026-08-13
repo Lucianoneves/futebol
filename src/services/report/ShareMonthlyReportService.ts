@@ -1,4 +1,5 @@
 import { reportShareToken } from "../../utils/reportShareToken";
+import { assertYearMonth } from "../../utils/date";
 
 interface ShareMonthlyReportRequest {
   year: number;
@@ -7,13 +8,7 @@ interface ShareMonthlyReportRequest {
 
 class ShareMonthlyReportService {
   async execute({ year, month }: ShareMonthlyReportRequest) {
-    if (!year || !month) {
-      throw new Error("Ano e mês são obrigatórios");
-    }
-
-    if (month < 1 || month > 12) {
-      throw new Error("Mês deve ser entre 1 e 12");
-    }
+    assertYearMonth(year, month);
 
     return {
       year,

@@ -1,7 +1,7 @@
 import prismaClient from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
 import { resolvePlayerFees, feeFromPlayer, DEFAULT_FEES } from "../player/playerFees";
-import { nextCompetence } from "../../utils/date";
+import { assertYearMonth, nextCompetence } from "../../utils/date";
 import { MarkPaymentPaidService } from "../payment/MarkPaymentPaidService";
 import {
   normalizePlayerName,
@@ -28,7 +28,7 @@ type PaymentAction =
   | "already_paid"
   | "pay_months";
 
-export type WhatsAppImportRow = ParsedWhatsAppPlayer & {
+type WhatsAppImportRow = ParsedWhatsAppPlayer & {
   player_id: string | null;
   player_action: ImportAction;
   payment_action: PaymentAction;
@@ -46,9 +46,7 @@ class ImportWhatsAppPlayerListService {
       throw new Error("Cole a lista do WhatsApp");
     }
 
-    if (!year || !month || month < 1 || month > 12) {
-      throw new Error("Informe o mês e o ano da lista");
-    }
+    assertYearMonth(year, month, "Informe o mês e o ano da lista");
 
     const parsed = parseWhatsAppPlayerList(text);
 

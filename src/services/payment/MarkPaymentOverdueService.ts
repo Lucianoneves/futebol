@@ -1,5 +1,6 @@
 import prismaClient from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
+import { paymentPlayerInclude } from "../match/matchInclude";
 
 interface MarkPaymentOverdueRequest {
   payment_id: string;
@@ -36,15 +37,7 @@ class MarkPaymentOverdueService {
       data: {
         status: PaymentStatus.OVERDUE,
       },
-      include: {
-        player: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+      include: paymentPlayerInclude,
     });
 
     return paymentOverdue;

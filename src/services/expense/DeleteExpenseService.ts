@@ -1,4 +1,4 @@
-import prismaClient from "../../prisma";
+import prismaClient, { deleteCashFlowIfPresent } from "../../prisma";
 
 interface DeleteExpenseRequest {
   expense_id: string;
@@ -19,11 +19,7 @@ class DeleteExpenseService {
       throw new Error("Despesa não encontrada");
     }
 
-    if (expense.cashFlow) {
-      await prismaClient.cashFlow.delete({
-        where: { id: expense.cashFlow.id },
-      });
-    }
+    await deleteCashFlowIfPresent(expense.cashFlow);
 
     await prismaClient.expense.delete({
       where: { id: expense_id },

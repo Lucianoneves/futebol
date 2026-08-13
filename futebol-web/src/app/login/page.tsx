@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { homePath } from "@/lib/auth";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { ApiError } from "@/lib/api";
 
@@ -15,7 +16,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (ready && user) {
-      router.replace("/dashboard");
+      router.replace(homePath(user.role));
     }
   }, [ready, user, router]);
 
@@ -37,7 +38,7 @@ export default function LoginPage() {
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
         <h1 className="brand">FUTEBOL</h1>
-        <p className="brand-sub">Painel de gestão do time</p>
+        <p className="brand-sub">Gestão e consulta do time</p>
 
         {error ? <div className="error-box">{error}</div> : null}
 

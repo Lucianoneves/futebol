@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { dashboardApi } from "@/lib/services";
-import { money } from "@/lib/format";
+import { money, currentYearMonth, formatDateBr, transactionTypeClass, transactionTypeLabel } from "@/lib/format";
 
 export default function DashboardPage() {
-  const now = useMemo(() => new Date(), []);
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const { year: initialYear, month: initialMonth } = currentYearMonth();
+  const [year, setYear] = useState(initialYear);
+  const [month, setMonth] = useState(initialMonth);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard", year, month],
@@ -20,7 +20,10 @@ export default function DashboardPage() {
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>
-          <p>Saldo do time (receitas − despesas)</p>
+          <p>
+            Receitas do mês vigente (sem adiantamento do mês seguinte), despesas
+            do mês e saldo restante para os próximos meses
+          </p>
         </div>
       </div>
 
@@ -51,18 +54,41 @@ export default function DashboardPage() {
 
       <div className="grid-3">
         <div className="stat-card">
-          <span>Receitas</span>
+          <span>Receitas do mês vigente</span>
           <strong>{money(data?.income ?? 0)}</strong>
         </div>
         <div className="stat-card">
-          <span>Despesas</span>
+          <span>Despesas do mês</span>
           <strong>{money(data?.outcome ?? 0)}</strong>
         </div>
         <div className="stat-card">
-          <span>Saldo</span>
-          <strong>{money(data?.balance ?? 0)}</strong>
+          <span>Saldo restante (próximos meses)</span>
+          <strong
+            style={{
+              color:
+                (data?.remaining ?? data?.balance ?? 0) < 0
+                  ? "var(--danger)"
+                  : "var(--ok)",
+            }}
+          >
+            {money(data?.remaining ?? data?.balance ?? 0)}
+          </strong>
         </div>
       </div>
+
+      {data?.prepaid ? (
+        <p style={{ color: "var(--muted)", marginTop: 0 }}>
+          Adiantado para o próximo mês (não entra nas receitas vigentes):{" "}
+          <strong>{money(data.prepaid)}</strong>
+          {" · "}
+          Resultado deste mês: {money(data.monthBalance ?? 0)}
+        </p>
+      ) : (
+        <p style={{ color: "var(--muted)", marginTop: 0 }}>
+          Resultado deste mês (receitas − despesas):{" "}
+          <strong>{money(data?.monthBalance ?? 0)}</strong>
+        </p>
+      )}
 
       <div className="panel">
         <h2 style={{ marginTop: 0 }}>Movimentações</h2>
@@ -80,12 +106,10 @@ export default function DashboardPage() {
             <tbody>
               {(data?.transactions ?? []).map((item) => (
                 <tr key={item.id}>
-                  <td>{new Date(item.date).toLocaleDateString("pt-BR")}</td>
+                  <td>{formatDateBr(String(item.date))}</td>
                   <td>
-                    <span
-                      className={`badge ${item.type === "INCOME" ? "ok" : "danger"}`}
-                    >
-                      {item.type === "INCOME" ? "Receita" : "Despesa"}
+                    <span className={`badge ${transactionTypeClass(item.type)}`}>
+                      {transactionTypeLabel(item.type)}
                     </span>
                   </td>
                   <td>{item.description}</td>

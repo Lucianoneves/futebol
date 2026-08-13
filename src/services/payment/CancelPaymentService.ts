@@ -1,5 +1,6 @@
-import prismaClient from "../../prisma";
+import prismaClient, { deleteCashFlowIfPresent } from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
+import { paymentPlayerInclude } from "../match/matchInclude";
 
 interface CancelPaymentRequest {
   payment_id: string;
@@ -26,11 +27,7 @@ class CancelPaymentService {
       throw new Error("Pagamento já está cancelado");
     }
 
-    if (payment.cashFlow) {
-      await prismaClient.cashFlow.delete({
-        where: { id: payment.cashFlow.id },
-      });
-    }
+    await deleteCashFlowIfPresent(payment.cashFlow);
 
     const paymentCancelled = await prismaClient.payment.update({
       where: { id: payment_id },
@@ -39,15 +36,7 @@ class CancelPaymentService {
         paidAmount: 0,
         paidAt: null,
       },
-      include: {
-        player: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+      include: paymentPlayerInclude,
     });
 
     return paymentCancelled;

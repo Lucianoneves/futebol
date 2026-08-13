@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, QueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { paymentsApi, playersApi, reportsApi } from "@/lib/services";
+import { paymentsApi, playersApi } from "@/lib/services";
 import {
   money,
   monthLabel,
@@ -12,34 +12,36 @@ import {
   paymentStatusClass,
   remainingOf,
   sortByPtName,
-  normalizeSearch,
+  currentYearMonth,
+  filterSortByName,
+  partitionByPlayerType,
+  NAME_SEARCH_PLACEHOLDER,
 } from "@/lib/format";
 import {
-  copyPngToClipboard,
-  downloadPng,
+  copyReportImageWithFallback,
   renderReportPng,
   reportFromPayments,
   reportImageFilename,
 } from "@/lib/reportImage";
 import {
-  isLocalShareUrl,
-  openWhatsApp,
-  publicReportUrl,
-  whatsAppReportLinkText,
+  copyPublicReportLink,
+  sendPublicReportWhatsApp,
 } from "@/lib/shareReport";
 import { ApiError } from "@/lib/api";
 import type { Payment } from "@/lib/types";
 
-function sortByPlayerName(left: Payment, right: Payment) {
-  return sortByPtName(left.player?.name || "", right.player?.name || "");
+async function invalidatePaymentViews(queryClient: QueryClient) {
+  await queryClient.invalidateQueries({ queryKey: ["payments"] });
+  await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  await queryClient.invalidateQueries({ queryKey: ["report-monthly"] });
 }
 
 export default function PaymentsPage() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
-  const now = useMemo(() => new Date(), []);
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const { year: initialYear, month: initialMonth } = currentYearMonth();
+  const [year, setYear] = useState(initialYear);
+  const [month, setMonth] = useState(initialMonth);
   const [playerId, setPlayerId] = useState("");
   const [notes, setNotes] = useState("");
   const [amount, setAmount] = useState("");
@@ -72,16 +74,19 @@ export default function PaymentsPage() {
 
   const { monthly, casual, collected, expected, pending } = useMemo(() => {
     const active = payments.filter((item) => item.status !== "CANCELLED");
-    const query = normalizeSearch(search);
-    const sorted = [...active]
-      .filter((item) =>
-        query ? normalizeSearch(item.player?.name || "").includes(query) : true
-      )
-      .sort(sortByPlayerName);
+    const sorted = filterSortByName(
+      active,
+      search,
+      (item) => item.player?.name || ""
+    );
+    const { monthly, casual } = partitionByPlayerType(
+      sorted,
+      (item) => item.player?.type
+    );
 
     return {
-      monthly: sorted.filter((item) => item.player?.type === "MONTHLY"),
-      casual: sorted.filter((item) => item.player?.type === "CASUAL"),
+      monthly,
+      casual,
       collected: active.reduce(
         (sum, item) => sum + Number(item.paidAmount || 0),
         0
@@ -116,8 +121,7 @@ export default function PaymentsPage() {
       } else {
         setInfo("");
       }
-      await queryClient.invalidateQueries({ queryKey: ["payments"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await invalidatePaymentViews(queryClient);
     },
   });
 
@@ -135,8 +139,7 @@ export default function PaymentsPage() {
       } else {
         setInfo("");
       }
-      await queryClient.invalidateQueries({ queryKey: ["payments"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await invalidatePaymentViews(queryClient);
     },
   });
 
@@ -149,7 +152,7 @@ export default function PaymentsPage() {
       data: { amount?: number; notes?: string };
     }) => paymentsApi.update(id, data),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["payments"] });
+      await invalidatePaymentViews(queryClient);
     },
   });
 
@@ -166,8 +169,7 @@ export default function PaymentsPage() {
       return paymentsApi.cancel(id);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["payments"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await invalidatePaymentViews(queryClient);
     },
   });
 
@@ -178,35 +180,14 @@ export default function PaymentsPage() {
         `Cobrança de ${monthLabel(result.month)}/${result.year}: ${result.created} novas, ${result.existing} já existiam, ${result.skipped_paid} já pagas.`
       );
       setError("");
-      await queryClient.invalidateQueries({ queryKey: ["payments"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await invalidatePaymentViews(queryClient);
     },
   });
-
-  async function shareImage() {
-    return renderReportPng(reportFromPayments(payments, year, month));
-  }
-
-  async function resolveShareUrl() {
-    const share = await reportsApi.share(year, month);
-    return publicReportUrl(share.year, share.month, share.token);
-  }
-
-  function shareSuccessMessage(url: string, copied: boolean) {
-    const local = isLocalShareUrl(url)
-      ? " No celular do grupo, publique o painel ou abra pelo IP da rede — localhost não abre fora deste computador."
-      : "";
-    return copied
-      ? `Link copiado.${local}`
-      : `WhatsApp aberto com o link.${local}`;
-  }
 
   async function handleCopyLink() {
     setSharing(true);
     try {
-      const url = await resolveShareUrl();
-      await navigator.clipboard.writeText(url);
-      setInfo(shareSuccessMessage(url, true));
+      setInfo(await copyPublicReportLink(year, month));
       setError("");
     } catch {
       setError("Não foi possível copiar o link.");
@@ -218,9 +199,7 @@ export default function PaymentsPage() {
   async function handleSendWhatsApp() {
     setSharing(true);
     try {
-      const url = await resolveShareUrl();
-      openWhatsApp(whatsAppReportLinkText(year, month, url));
-      setInfo(shareSuccessMessage(url, false));
+      setInfo(await sendPublicReportWhatsApp(year, month));
       setError("");
     } catch {
       setError("Não foi possível gerar o link do relatório.");
@@ -232,23 +211,17 @@ export default function PaymentsPage() {
   async function handleCopyImage() {
     setSharing(true);
     const report = reportFromPayments(payments, year, month);
-    try {
-      const blob = await shareImage();
-      await copyPngToClipboard(blob);
-      setInfo("Imagem copiada. Cole no WhatsApp (Ctrl+V).");
+    const result = await copyReportImageWithFallback(
+      () => renderReportPng(report),
+      reportImageFilename(report)
+    );
+    if (result.ok) {
+      setInfo(result.message);
       setError("");
-    } catch {
-      try {
-        const blob = await shareImage();
-        downloadPng(blob, reportImageFilename(report));
-        setInfo("Não deu para copiar. A imagem foi baixada para você anexar no WhatsApp.");
-        setError("");
-      } catch {
-        setError("Não foi possível gerar a imagem do relatório.");
-      }
-    } finally {
-      setSharing(false);
+    } else {
+      setError(result.message);
     }
+    setSharing(false);
   }
 
   async function handleGenerateMonth() {
@@ -458,7 +431,7 @@ export default function PaymentsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ney, Duda, Pedro..."
+            placeholder={NAME_SEARCH_PLACEHOLDER}
           />
         </div>
         {isAdmin ? (

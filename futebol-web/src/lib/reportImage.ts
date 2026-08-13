@@ -3,8 +3,10 @@ import {
   monthName,
   PAYMENT_STATUS_LABEL,
   PLAYER_TYPE_LABEL,
+  paymentStatusClass,
   sortByPtName,
 } from "./format";
+import { downloadBlob, exportFilename } from "./exportReport";
 import type { MonthlyReport, Payment, PlayerType } from "./types";
 
 export type ReportImageRow = {
@@ -31,20 +33,25 @@ const ROW_H = 42;
 const RADIUS = 14;
 
 export function reportFromMonthly(data: MonthlyReport): ReportImageData {
-  const paid = [...data.paid]
-    .sort((left, right) => sortByPtName(left.name, right.name))
-    .map((item) => ({
+  const paid = toSortedRows(
+    data.paid,
+    (item) => item.name,
+    (item) => ({
       name: item.name,
       type: item.type,
       value: Number(item.paidAmount ?? item.amount ?? 0),
-    }));
-  const owing = [...data.owing]
-    .sort((left, right) => sortByPtName(left.name, right.name))
-    .map((item) => ({
+    })
+  );
+  const owing = toSortedRows(
+    data.owing,
+    (item) => item.name,
+    (item) => ({
       name: item.name,
+      type: item.type,
       status: item.status,
       value: item.amount === null ? null : Number(item.amount),
-    }));
+    })
+  );
 
   return {
     year: data.year,
@@ -63,26 +70,25 @@ export function reportFromPayments(
   month: number
 ): ReportImageData {
   const active = payments.filter((item) => item.status !== "CANCELLED");
-  const paid = active
-    .filter((item) => item.status === "PAID")
-    .sort((left, right) =>
-      sortByPtName(left.player?.name || "", right.player?.name || "")
-    )
-    .map((item) => ({
+  const paid = toSortedRows(
+    active.filter((item) => item.status === "PAID"),
+    (item) => item.player?.name || "",
+    (item) => ({
       name: item.player?.name || "Jogador",
       type: item.player?.type,
       value: Number(item.paidAmount || 0),
-    }));
-  const owing = active
-    .filter((item) => item.status !== "PAID")
-    .sort((left, right) =>
-      sortByPtName(left.player?.name || "", right.player?.name || "")
-    )
-    .map((item) => ({
+    })
+  );
+  const owing = toSortedRows(
+    active.filter((item) => item.status !== "PAID"),
+    (item) => item.player?.name || "",
+    (item) => ({
       name: item.player?.name || "Jogador",
+      type: item.player?.type,
       status: item.status,
       value: Number(item.amount || 0),
-    }));
+    })
+  );
   const paidTotal = active.reduce(
     (sum, item) => sum + Number(item.paidAmount || 0),
     0
@@ -100,7 +106,7 @@ export function reportFromPayments(
 }
 
 export function reportImageFilename(data: ReportImageData) {
-  return `relatorio-${monthName(data.month)}-${data.year}.png`;
+  return exportFilename(data.year, data.month, "png");
 }
 
 export async function renderReportPng(data: ReportImageData): Promise<Blob> {
@@ -120,12 +126,48 @@ export async function copyPngToClipboard(blob: Blob) {
 }
 
 export function downloadPng(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, filename);
+}
+
+async function copyReportImageWithFallback(
+  getBlob: () => Promise<Blob>,
+  filename: string
+) {
+  try {
+    const blob = await getBlob();
+    await copyPngToClipboard(blob);
+    return {
+      ok: true as const,
+      message: "Imagem copiada. Cole no WhatsApp (Ctrl+V).",
+    };
+  } catch {
+    try {
+      const blob = await getBlob();
+      downloadPng(blob, filename);
+      return {
+        ok: true as const,
+        message:
+          "Não deu para copiar. A imagem foi baixada para você anexar no WhatsApp.",
+      };
+    } catch {
+      return {
+        ok: false as const,
+        message: "Não foi possível gerar a imagem do relatório.",
+      };
+    }
+  }
+}
+
+export { copyReportImageWithFallback };
+
+function toSortedRows<T>(
+  items: T[],
+  getName: (item: T) => string,
+  map: (item: T) => ReportImageRow
+) {
+  return [...items]
+    .sort((left, right) => sortByPtName(getName(left), getName(right)))
+    .map(map);
 }
 
 function drawReportCanvas(data: ReportImageData) {
@@ -231,7 +273,10 @@ function drawReportCanvas(data: ReportImageData) {
           money(item.value),
         ],
         [0.46, 0.3, 0.24],
-        body
+        body,
+        item.type === "CASUAL" ? 1 : undefined,
+        item.type === "CASUAL" ? "casual" : "muted",
+        item.type === "CASUAL"
       );
     });
   }
@@ -253,7 +298,8 @@ function drawReportCanvas(data: ReportImageData) {
         [0.46, 0.3, 0.24],
         body,
         1,
-        badgeTone(item.status)
+        paymentStatusClass(item.status || ""),
+        item.type === "CASUAL"
       );
     });
   }
@@ -317,8 +363,13 @@ function drawRow(
   ratios: number[],
   body: string,
   badgeIndex?: number,
-  tone: "ok" | "warn" | "danger" | "muted" = "muted"
+  tone: "ok" | "warn" | "danger" | "muted" | "casual" = "muted",
+  highlight = false
 ) {
+  if (highlight) {
+    ctx.fillStyle = "rgba(212, 160, 23, 0.16)";
+    ctx.fillRect(x + 10, y + 2, width - 20, ROW_H - 4);
+  }
   const inner = width - 40;
   let cursor = x + 20;
   values.forEach((value, index) => {
@@ -326,7 +377,7 @@ function drawRow(
     if (index === badgeIndex) {
       drawBadge(ctx, cursor, y + 8, value, tone, body);
     } else {
-      ctx.fillStyle = "#13261a";
+      ctx.fillStyle = highlight ? "#6b4f0e" : "#13261a";
       ctx.font = `500 14px ${body}`;
       ctx.fillText(fitText(ctx, value, colW - 8), cursor, y + 26);
     }
@@ -357,7 +408,7 @@ function drawBadge(
   x: number,
   y: number,
   text: string,
-  tone: "ok" | "warn" | "danger" | "muted",
+  tone: "ok" | "warn" | "danger" | "muted" | "casual",
   body: string
 ) {
   const colors = {
@@ -365,6 +416,7 @@ function drawBadge(
     warn: { bg: "rgba(183, 121, 31, 0.14)", fg: "#b7791f" },
     danger: { bg: "rgba(180, 35, 24, 0.12)", fg: "#b42318" },
     muted: { bg: "rgba(77, 101, 86, 0.12)", fg: "#4d6556" },
+    casual: { bg: "rgba(212, 160, 23, 0.22)", fg: "#8a6410" },
   }[tone];
   ctx.font = `700 12px ${body}`;
   const w = ctx.measureText(text).width + 16;
@@ -374,13 +426,6 @@ function drawBadge(
   ctx.fill();
   ctx.fillStyle = colors.fg;
   ctx.fillText(text, x + 8, y + 16);
-}
-
-function badgeTone(status?: string): "ok" | "warn" | "danger" | "muted" {
-  if (status === "PAID") return "ok";
-  if (status === "OVERDUE") return "danger";
-  if (status === "PENDING") return "warn";
-  return "muted";
 }
 
 function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
