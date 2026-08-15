@@ -3,7 +3,7 @@ import { CreateExpenseService } from "../../services/expense/CreateExpenseServic
 
 class CreateExpenseController {
   async handle(request: Request, response: Response) {
-    const { expense_type_id, amount, spentAt } = request.body;
+    const { expense_type_id, amount, spentAt, from_monthly_cash } = request.body;
 
     const createExpenseService = new CreateExpenseService();
 
@@ -11,6 +11,7 @@ class CreateExpenseController {
       expense_type_id,
       amount: Number(amount),
       spentAt,
+      from_monthly_cash,
     });
 
     return response.json(expense);

@@ -1,13 +1,36 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { playersApi } from "@/lib/services";
-import { money, monthName, filterSortByName, partitionByPlayerType, PAYMENT_STATUS_LABEL, paymentStatusClass, NAME_SEARCH_PLACEHOLDER } from "@/lib/format";
+import { money, monthName, filterSortByName, partitionByPlayerType, PAYMENT_STATUS_LABEL, paymentStatusClass, NAME_SEARCH_PLACEHOLDER, visibleHistoryPayment } from "@/lib/format";
 import type { Player, PlayerType, PlayerYearHistory } from "@/lib/types";
 import { ApiError } from "@/lib/api";
 import { WhatsAppImportPanel } from "@/components/players/WhatsAppImportPanel";
+import {
+  copyReportImageWithFallback,
+  playersImageFilename,
+  renderPlayersPng,
+} from "@/lib/reportImage";
+
+const HIDDEN_INACTIVE_KEY = "futebol-hidden-inactive-players";
+
+function readHiddenInactiveIds() {
+  if (typeof window === "undefined") return [] as string[];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HIDDEN_INACTIVE_KEY) || "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHiddenInactiveIds(ids: string[]) {
+  localStorage.setItem(HIDDEN_INACTIVE_KEY, JSON.stringify(ids));
+}
 
 const emptyForm = {
   name: "",
@@ -30,10 +53,19 @@ export default function PlayersPage() {
   const [accessEmail, setAccessEmail] = useState("");
   const [accessPassword, setAccessPassword] = useState("");
   const [accessInfo, setAccessInfo] = useState("");
+  const [hiddenInactiveIds, setHiddenInactiveIds] = useState<string[]>([]);
+  const [sharing, setSharing] = useState(false);
+  const [info, setInfo] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setHiddenInactiveIds(readHiddenInactiveIds());
+  }, []);
 
   const { data: players = [], isLoading } = useQuery({
     queryKey: ["players", onlyActive],
-    queryFn: () => playersApi.list(onlyActive ? true : undefined),
+    queryFn: () => playersApi.list(onlyActive),
   });
 
   const { data: history, isLoading: historyLoading } = useQuery({
@@ -43,9 +75,58 @@ export default function PlayersPage() {
   });
 
   const { monthly, casual } = useMemo(() => {
-    const filtered = filterSortByName(players, search, (player) => player.name);
+    const visible = onlyActive
+      ? players
+      : players.filter((player) => !hiddenInactiveIds.includes(player.id));
+    const filtered = filterSortByName(visible, search, (player) => player.name);
     return partitionByPlayerType(filtered, (player) => player.type);
-  }, [players, search]);
+  }, [players, search, onlyActive, hiddenInactiveIds]);
+
+  function hideInactivePlayer(id: string) {
+    setHiddenInactiveIds((prev) => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      writeHiddenInactiveIds(next);
+      return next;
+    });
+  }
+
+  function restoreHiddenInactive() {
+    writeHiddenInactiveIds([]);
+    setHiddenInactiveIds([]);
+  }
+
+  async function handleCopyImage() {
+    setSharing(true);
+    setError("");
+    setInfo("");
+    const result = await copyReportImageWithFallback(
+      () =>
+        renderPlayersPng({
+          onlyActive,
+          monthly: monthly.map((player) => ({
+            name: player.name,
+            fee: Number(
+              player.type === "MONTHLY" ? player.monthlyFee : player.casualFee
+            ),
+            active: player.active,
+          })),
+          casual: casual.map((player) => ({
+            name: player.name,
+            fee: Number(
+              player.type === "MONTHLY" ? player.monthlyFee : player.casualFee
+            ),
+            active: player.active,
+          })),
+        }),
+      playersImageFilename(onlyActive)
+    );
+    if (result.ok) {
+      setInfo(result.message);
+    } else {
+      setError(result.message);
+    }
+    setSharing(false);
+  }
 
   const createMutation = useMutation({
     mutationFn: playersApi.create,
@@ -77,6 +158,13 @@ export default function PlayersPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: playersApi.deactivate,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["players"] });
+    },
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: playersApi.activate,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["players"] });
     },
@@ -153,6 +241,8 @@ export default function PlayersPage() {
       email: player.email || "",
       phone: player.phone || "",
     });
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    nameInputRef.current?.focus({ preventScroll: true });
   }
 
   return (
@@ -167,7 +257,12 @@ export default function PlayersPage() {
       {isAdmin ? <WhatsAppImportPanel /> : null}
 
       {isAdmin ? (
-        <form className="panel" onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
+        <form
+          ref={formRef}
+          className="panel"
+          onSubmit={handleSubmit}
+          style={{ marginBottom: 20, scrollMarginTop: 16 }}
+        >
           <h2 style={{ marginTop: 0 }}>
             {editing ? "Editar jogador" : "Novo jogador"}
           </h2>
@@ -176,6 +271,7 @@ export default function PlayersPage() {
             <div className="field">
               <label>Nome</label>
               <input
+                ref={nameInputRef}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
@@ -252,9 +348,31 @@ export default function PlayersPage() {
           />
           Somente ativos
         </label>
+        {!onlyActive && hiddenInactiveIds.length > 0 ? (
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={restoreHiddenInactive}
+          >
+            Mostrar ocultos ({hiddenInactiveIds.length})
+          </button>
+        ) : null}
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={handleCopyImage}
+          disabled={sharing}
+        >
+          {sharing ? "Gerando..." : "Copiar imagem"}
+        </button>
       </div>
 
       {isLoading ? <p>Carregando...</p> : null}
+      {info ? (
+        <p style={{ color: "var(--ok)", fontWeight: 600, marginTop: 0 }}>
+          {info}
+        </p>
+      ) : null}
 
       <div className="split-lists">
         <PlayerGroup
@@ -266,6 +384,8 @@ export default function PlayersPage() {
           onAccess={isAdmin ? startAccess : undefined}
           onEdit={startEdit}
           onDeactivate={(id) => deactivateMutation.mutate(id)}
+          onActivate={(id) => activateMutation.mutate(id)}
+          onHide={isAdmin && !onlyActive ? hideInactivePlayer : undefined}
         />
         <PlayerGroup
           title={`Convidados (${casual.length})`}
@@ -276,6 +396,8 @@ export default function PlayersPage() {
           onAccess={isAdmin ? startAccess : undefined}
           onEdit={startEdit}
           onDeactivate={(id) => deactivateMutation.mutate(id)}
+          onActivate={(id) => activateMutation.mutate(id)}
+          onHide={isAdmin && !onlyActive ? hideInactivePlayer : undefined}
         />
       </div>
 
@@ -360,6 +482,8 @@ function PlayerGroup({
   onAccess,
   onEdit,
   onDeactivate,
+  onActivate,
+  onHide,
 }: {
   title: string;
   players: Player[];
@@ -369,6 +493,8 @@ function PlayerGroup({
   onAccess?: (player: Player) => void;
   onEdit: (player: Player) => void;
   onDeactivate: (id: string) => void;
+  onActivate: (id: string) => void;
+  onHide?: (id: string) => void;
 }) {
   return (
     <div className="panel">
@@ -419,7 +545,7 @@ function PlayerGroup({
                     </button>
                     {isAdmin ? (
                       <>
-                        {onAccess ? (
+                        {onAccess && player.active ? (
                           <button
                             className="btn-secondary"
                             type="button"
@@ -443,7 +569,26 @@ function PlayerGroup({
                           >
                             Desativar
                           </button>
-                        ) : null}
+                        ) : (
+                          <>
+                            <button
+                              className="btn"
+                              type="button"
+                              onClick={() => onActivate(player.id)}
+                            >
+                              Reativar
+                            </button>
+                            {onHide ? (
+                              <button
+                                className="btn-danger"
+                                type="button"
+                                onClick={() => onHide(player.id)}
+                              >
+                                Apagar
+                              </button>
+                            ) : null}
+                          </>
+                        )}
                       </>
                     ) : null}
                   </div>
@@ -482,7 +627,10 @@ function PlayerHistoryPanel({
       <div className="page-header" style={{ marginBottom: 12 }}>
         <div>
           <h2 style={{ margin: 0 }}>Histórico de {player.name}</h2>
-          <p>O que pagou em cada mês. Atraso automático no dia 21 do mês seguinte.</p>
+          <p>
+            O que pagou em cada mês. O mês seguinte só fica pendente a partir do
+            dia 21. Atraso automático no dia 21 do mês seguinte.
+          </p>
         </div>
         <button className="btn-secondary" type="button" onClick={onClose}>
           Fechar
@@ -511,25 +659,34 @@ function PlayerHistoryPanel({
             </tr>
           </thead>
           <tbody>
-            {(history?.months ?? []).map((item) => (
-              <tr key={item.month}>
-                <td>
-                  {monthName(item.month)}/{year}
-                </td>
-                <td>
-                  {item.payment ? (
-                    <span className={`badge ${paymentStatusClass(item.payment.status)}`}>
-                      {PAYMENT_STATUS_LABEL[item.payment.status] || item.payment.status}
-                    </span>
-                  ) : (
-                    <span className="badge muted">Sem cobrança</span>
-                  )}
-                </td>
-                <td>{item.payment ? money(item.payment.amount) : "-"}</td>
-                <td>{item.payment ? money(item.payment.paidAmount) : "-"}</td>
-                <td>{item.payment ? money(item.payment.remaining) : "-"}</td>
-              </tr>
-            ))}
+            {(history?.months ?? []).map((item) => {
+              const payment = visibleHistoryPayment(
+                item.payment,
+                year,
+                item.month,
+                history?.overdue_day
+              );
+
+              return (
+                <tr key={item.month}>
+                  <td>
+                    {monthName(item.month)}/{year}
+                  </td>
+                  <td>
+                    {payment ? (
+                      <span className={`badge ${paymentStatusClass(payment.status)}`}>
+                        {PAYMENT_STATUS_LABEL[payment.status] || payment.status}
+                      </span>
+                    ) : (
+                      <span className="badge muted">Sem cobrança</span>
+                    )}
+                  </td>
+                  <td>{payment ? money(payment.amount) : "-"}</td>
+                  <td>{payment ? money(payment.paidAmount) : "-"}</td>
+                  <td>{payment ? money(payment.remaining) : "-"}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

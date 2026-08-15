@@ -312,7 +312,7 @@ export default function PaymentsPage() {
         <div>
           <h1>Pagamentos</h1>
           <p>
-            Mensalista que pagar 80 sem atraso: 40 no mês vigente e 40 no próximo
+            {monthLabel(month)}/{year}
           </p>
         </div>
       </div>

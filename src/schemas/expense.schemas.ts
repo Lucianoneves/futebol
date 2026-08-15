@@ -5,6 +5,7 @@ export const createExpenseSchema = z.object({
   expense_type_id: z.string().uuid("Tipo de despesa inválido"),
   amount: z.coerce.number().positive("Valor da despesa inválido"),
   spentAt: z.string().optional(),
+  from_monthly_cash: z.boolean().optional(),
 });
 
 export const updateExpenseSchema = createExpenseSchema.partial();

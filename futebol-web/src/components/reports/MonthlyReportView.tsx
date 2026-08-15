@@ -22,25 +22,52 @@ type MonthlyReportViewProps = {
   owing: ReportRow[];
 };
 
+function playersPaidLabel(count: number) {
+  return count === 1 ? "1 jogador pagou" : `${count} jogadores pagaram`;
+}
+
+function playersPendingLabel(count: number) {
+  return count === 1
+    ? "1 jogador falta pagar"
+    : `${count} jogadores faltam pagar`;
+}
+
 export function MonthlyReportView({
   summary,
   paid,
   owing,
 }: MonthlyReportViewProps) {
+  const paidCount = summary?.paidCount ?? paid.length;
+  const pendingCount =
+    summary?.pendingCount ??
+    owing.filter((item) => item.amount !== null).length;
+  const paidTotal = summary?.paidTotal ?? 0;
+  const expectedTotal =
+    summary?.expectedTotal ??
+    [...paid, ...owing].reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    );
+  const pendingTotal =
+    summary?.pendingTotal ??
+    Number(Math.max(0, expectedTotal - paidTotal).toFixed(2));
+
   return (
     <>
       <div className="grid-3">
         <div className="stat-card">
-          <span>Total pago no mês</span>
-          <strong>{money(summary?.paidTotal ?? 0)}</strong>
+          <span>Total arrecadado</span>
+          <strong>{money(paidTotal)}</strong>
+          <span>{playersPaidLabel(paidCount)}</span>
         </div>
         <div className="stat-card">
-          <span>Em dia</span>
-          <strong>{summary?.paidCount ?? 0}</strong>
+          <span>Pendente</span>
+          <strong>{money(pendingTotal)}</strong>
+          <span>{playersPendingLabel(pendingCount)}</span>
         </div>
         <div className="stat-card">
-          <span>Em aberto</span>
-          <strong>{summary?.owingCount ?? 0}</strong>
+          <span>Esperado no mês</span>
+          <strong>{money(expectedTotal)}</strong>
         </div>
       </div>
 

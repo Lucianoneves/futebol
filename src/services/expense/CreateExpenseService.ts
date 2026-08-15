@@ -1,11 +1,15 @@
 import prismaClient, { expenseInclude } from "../../prisma";
-import { CashFlowType } from "../../generated/prisma/enums";
 import { parseSpentAt } from "../../utils/date";
+import {
+  monthlyCashRelation,
+  monthlyExpenseCashFlowData,
+} from "./monthlyExpenseCash";
 
 interface CreateExpenseRequest {
   expense_type_id: string;
   amount: number;
   spentAt?: string;
+  from_monthly_cash?: boolean;
 }
 
 class CreateExpenseService {
@@ -13,6 +17,7 @@ class CreateExpenseService {
     expense_type_id,
     amount,
     spentAt,
+    from_monthly_cash,
   }: CreateExpenseRequest) {
     if (!expense_type_id || amount === undefined) {
       throw new Error("Tipo e valor são obrigatórios");
@@ -31,6 +36,12 @@ class CreateExpenseService {
     }
 
     const date = parseSpentAt(spentAt);
+    const fromMonthlyCash = from_monthly_cash !== false;
+    const cashFlowData = monthlyExpenseCashFlowData(
+      expenseType.name,
+      amount,
+      date
+    );
 
     const expense = await prismaClient.expense.create({
       data: {
@@ -38,14 +49,8 @@ class CreateExpenseService {
         expenseTypeId: expense_type_id,
         amount,
         spentAt: date,
-        cashFlow: {
-          create: {
-            type: CashFlowType.OUTCOME,
-            amount,
-            description: `Despesa: ${expenseType.name}`,
-            date,
-          },
-        },
+        fromMonthlyCash,
+        ...monthlyCashRelation(fromMonthlyCash, false, cashFlowData),
       },
       include: expenseInclude,
     });

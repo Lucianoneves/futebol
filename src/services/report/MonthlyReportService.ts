@@ -1,7 +1,8 @@
 import prismaClient from "../../prisma";
-import { PaymentStatus } from "../../generated/prisma/enums";
+import { PaymentStatus, PlayerType } from "../../generated/prisma/enums";
 import { ApplyOverduePaymentsService } from "../payment/ApplyOverduePaymentsService";
-import { assertYearMonth } from "../../utils/date";
+import { feeFromPlayer } from "../player/playerFees";
+import { assertYearMonth, isCompetenceBillingOpen, isCompetenceOverdue } from "../../utils/date";
 
 interface MonthlyReportRequest {
   year: number;
@@ -28,13 +29,48 @@ class MonthlyReportService {
     const paid = [];
     const owing = [];
     let paidTotal = 0;
+    let expectedTotal = 0;
+    let pendingTotal = 0;
+    let pendingCount = 0;
+
+    const billingOpen = isCompetenceBillingOpen(year, month);
 
     for (const player of players) {
-      const payment = player.payments[0];
+      const payment = player.payments.find(
+        (item) => item.status !== PaymentStatus.CANCELLED
+      );
       const paidAmount = payment ? Number(payment.paidAmount || 0) : 0;
+      const unpaidPending =
+        payment?.status === PaymentStatus.PENDING && paidAmount <= 0;
 
-      if (payment && payment.status !== PaymentStatus.CANCELLED) {
+      if (
+        player.type === PlayerType.MONTHLY &&
+        !billingOpen &&
+        (!payment || unpaidPending)
+      ) {
+        continue;
+      }
+
+      const monthlyMissing =
+        player.type === PlayerType.MONTHLY && !payment && billingOpen;
+      const amount = payment
+        ? Number(payment.amount)
+        : monthlyMissing
+          ? feeFromPlayer(player)
+          : 0;
+      const remaining = Number(Math.max(0, amount - paidAmount).toFixed(2));
+      const status = payment
+        ? payment.status
+        : monthlyMissing
+          ? isCompetenceOverdue(year, month)
+            ? PaymentStatus.OVERDUE
+            : PaymentStatus.PENDING
+          : "MISSING";
+
+      if (payment || monthlyMissing) {
         paidTotal += paidAmount;
+        expectedTotal += amount;
+        pendingTotal += remaining;
       }
 
       const item = {
@@ -42,9 +78,9 @@ class MonthlyReportService {
         name: player.name,
         type: player.type,
         payment_id: payment?.id ?? null,
-        amount: payment ? Number(payment.amount) : null,
+        amount: payment || monthlyMissing ? amount : null,
         paidAmount,
-        status: payment?.status ?? "MISSING",
+        status,
         paidAt: payment?.paidAt ?? null,
       };
 
@@ -52,6 +88,7 @@ class MonthlyReportService {
         paid.push(item);
       } else {
         owing.push(item);
+        if (payment || monthlyMissing) pendingCount += 1;
       }
     }
 
@@ -62,7 +99,10 @@ class MonthlyReportService {
         totalPlayers: players.length,
         paidCount: paid.length,
         owingCount: owing.length,
+        pendingCount,
         paidTotal: Number(paidTotal.toFixed(2)),
+        pendingTotal: Number(pendingTotal.toFixed(2)),
+        expectedTotal: Number(expectedTotal.toFixed(2)),
       },
       paid,
       owing,

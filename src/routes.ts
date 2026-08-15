@@ -17,6 +17,7 @@ import { PlayerStatusController } from "./controllers/player/PlayerStatusControl
 import { ListPlayerShareController } from "./controllers/player/ListPlayerShareController";
 import { UpdatePlayerController } from "./controllers/player/UpdatePlayerController";
 import { DeactivatePlayerController } from "./controllers/player/DeactivatePlayerController";
+import { ActivatePlayerController } from "./controllers/player/ActivatePlayerController";
 import { ImportWhatsAppPlayerListController } from "./controllers/import/ImportWhatsAppPlayerListController";
 import { CreatePaymentController } from "./controllers/payment/CreatePaymentController";
 import { GenerateMonthlyPaymentsController } from "./controllers/payment/GenerateMonthlyPaymentsController";
@@ -161,6 +162,13 @@ router.delete(
   validate(playerIdParamsSchema, "params"),
   new DeactivatePlayerController().handle
 ); // Desativar jogador
+router.patch(
+  "/players/:id/activate",
+  isAuthenticated,
+  isAdmin,
+  validate(playerIdParamsSchema, "params"),
+  new ActivatePlayerController().handle
+); // Reativar jogador
 router.post(
   "/players/:id/access",
   isAuthenticated,

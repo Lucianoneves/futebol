@@ -35,6 +35,7 @@ class GenerateMatchSharesService {
     const expenses = await prismaClient.expense.findMany({
       where: {
         spentAt: { gte: start, lt: end },
+        fromMonthlyCash: false,
       },
     });
 

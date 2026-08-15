@@ -4,7 +4,7 @@ import { UpdateExpenseService } from "../../services/expense/UpdateExpenseServic
 class UpdateExpenseController {
   async handle(request: Request, response: Response) {
     const expense_id = String(request.params.id);
-    const { expense_type_id, amount, spentAt } = request.body;
+    const { expense_type_id, amount, spentAt, from_monthly_cash } = request.body;
 
     const updateExpenseService = new UpdateExpenseService();
 
@@ -13,6 +13,7 @@ class UpdateExpenseController {
       expense_type_id,
       amount: amount !== undefined ? Number(amount) : undefined,
       spentAt,
+      from_monthly_cash,
     });
 
     return response.json(expense);

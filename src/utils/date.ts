@@ -119,3 +119,16 @@ export function isCompetenceOverdue(
 ) {
   return startOfDay(now) >= startOfDay(overdueStartsOn(year, month));
 }
+
+export function billingStartsOn(year: number, month: number) {
+  const prev = nextCompetence(year, month, -1);
+  return new Date(prev.year, prev.month - 1, OVERDUE_DAY);
+}
+
+export function isCompetenceBillingOpen(
+  year: number,
+  month: number,
+  now = new Date()
+) {
+  return startOfDay(now) >= startOfDay(billingStartsOn(year, month));
+}

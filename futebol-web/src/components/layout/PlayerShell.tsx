@@ -20,7 +20,7 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
     if (ready && !user) {
       router.replace("/login");
     } else if (ready && user && user.role !== "PLAYER") {
-      router.replace("/dashboard");
+      router.replace("/players");
     }
   }, [ready, user, router]);
 

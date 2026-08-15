@@ -80,7 +80,9 @@ export function WhatsAppImportPanel() {
       <h2 style={{ marginTop: 0 }}>Colar lista do WhatsApp</h2>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>
         Copie a lista do grupo, cole aqui e escolha o mês. Quem tiver valor e ✅
-        entra como pago. Quem não pagou é cadastrado e fica pendente.
+        entra como pago. Quem não pagou é cadastrado e fica pendente. Colar de
+        novo não duplica: quem já existe só é atualizado, e a cobrança do mês é
+        reaproveitada.
       </p>
       {error ? <div className="error-box">{error}</div> : null}
       <div className="form-grid">

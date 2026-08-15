@@ -22,14 +22,45 @@ export function toApiDate(value: string) {
 }
 
 export function formatDateBr(value: string) {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split("-");
-    return `${day}/${month}/${year}`;
+  const iso = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return `${iso[3]}/${iso[2]}/${iso[1]}`;
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("pt-BR");
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+export function maskBrDate(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+export function parseBrDate(value: string) {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${year}-${padDatePart(month)}-${padDatePart(day)}`;
 }
 
 export function monthLabel(month: number) {
@@ -41,6 +72,38 @@ export function currentYearMonth(now = new Date()) {
     year: now.getFullYear(),
     month: now.getMonth() + 1,
   };
+}
+
+export function isMonthBillingOpen(
+  year: number,
+  month: number,
+  overdueDay = 21,
+  now = new Date()
+) {
+  const opensOn = new Date(year, month - 2, overdueDay);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return today >= new Date(opensOn.getFullYear(), opensOn.getMonth(), opensOn.getDate());
+}
+
+export function visibleHistoryPayment<
+  T extends { status: string; paidAmount?: string | number | null }
+>(
+  payment: T | null | undefined,
+  year: number,
+  month: number,
+  overdueDay = 21,
+  now = new Date()
+) {
+  if (!payment) return null;
+
+  const unpaidPending =
+    payment.status === "PENDING" && Number(payment.paidAmount || 0) <= 0;
+
+  if (unpaidPending && !isMonthBillingOpen(year, month, overdueDay, now)) {
+    return null;
+  }
+
+  return payment;
 }
 
 export function remainingOf(payment: {

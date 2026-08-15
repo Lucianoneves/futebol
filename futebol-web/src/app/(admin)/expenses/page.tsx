@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
 import {
@@ -8,6 +8,7 @@ import {
   expenseTypesApi,
   matchesApi,
   playersApi,
+  dashboardApi,
 } from "@/lib/services";
 import {
   formatDateBr,
@@ -22,15 +23,31 @@ import {
   filterSortByName,
   partitionByPlayerType,
 } from "@/lib/format";
-import type { Expense, Player } from "@/lib/types";
+import type { Expense, Match, Player } from "@/lib/types";
 import { ApiError } from "@/lib/api";
+import { DateInput } from "@/components/ui/DateInput";
+import {
+  copyReportImageWithFallback,
+  expensesDayImageFilename,
+  renderExpensesDayPng,
+} from "@/lib/reportImage";
 
 function emptyForm(spentAt = toDateInputValue()) {
   return {
     expense_type_id: "",
     amount: "",
     spentAt,
+    fromMonthlyCash: true,
   };
+}
+
+function attendanceIds(match: Match | null) {
+  if (!match) return [];
+  const fromPlayers = match.players.map((item) => item.playerId);
+  if (fromPlayers.length > 0) return fromPlayers;
+  return (match.shares || [])
+    .filter((share) => share.status !== "CANCELLED")
+    .map((share) => share.playerId);
 }
 
 export default function ExpensesPage() {
@@ -44,13 +61,16 @@ export default function ExpensesPage() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const hydratedDayRef = useRef<string | null>(null);
+  const skipAutoRateioRef = useRef(false);
 
   const { data: expenseTypes = [] } = useQuery({
     queryKey: ["expense-types"],
     queryFn: expenseTypesApi.list,
   });
 
-  const { data: expenses = [], isLoading } = useQuery({
+  const { data: expenses = [], isLoading, isFetched: expensesFetched } = useQuery({
     queryKey: ["expenses", day],
     queryFn: () => expensesApi.list({ spentAt: day }),
   });
@@ -60,20 +80,76 @@ export default function ExpensesPage() {
     queryFn: () => playersApi.list(true),
   });
 
-  const { data: matches = [] } = useQuery({
+  const { data: matches = [], isFetched: matchesFetched } = useQuery({
     queryKey: ["matches", day],
     queryFn: () => matchesApi.list(day),
   });
 
-  const match = matches[0] || null;
-  const savedAttendanceKey = [...(match?.players || [])]
-    .map((item) => item.playerId)
-    .sort()
-    .join(",");
+  const financeYear = Number((form.spentAt || day).slice(0, 4));
+  const financeMonth = Number((form.spentAt || day).slice(5, 7));
 
-  const total = useMemo(
-    () => expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0),
-    [expenses]
+  const { data: finance } = useQuery({
+    queryKey: ["dashboard", financeYear, financeMonth],
+    queryFn: () => dashboardApi.balance(financeYear, financeMonth),
+    enabled: Boolean(financeYear && financeMonth),
+  });
+
+  const match = matches[0] || null;
+  const isCaixa = form.fromMonthlyCash;
+
+  const visibleExpenses = useMemo(
+    () =>
+      expenses.filter((item) =>
+        isCaixa ? item.fromMonthlyCash !== false : item.fromMonthlyCash === false
+      ),
+    [expenses, isCaixa]
+  );
+
+  const others = useMemo(
+    () => expenses.filter((item) => item.id !== editing?.id),
+    [expenses, editing]
+  );
+
+  const savedCaixaTotal = useMemo(
+    () =>
+      others
+        .filter((item) => item.fromMonthlyCash !== false)
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    [others]
+  );
+
+  const savedRateioTotal = useMemo(
+    () =>
+      others
+        .filter((item) => item.fromMonthlyCash === false)
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    [others]
+  );
+
+  const draftAmount = Number(form.amount) > 0 ? Number(form.amount) : 0;
+  const caixaTotal = Number(
+    (savedCaixaTotal + (form.fromMonthlyCash ? draftAmount : 0)).toFixed(2)
+  );
+  const rateioTotal = Number(
+    (savedRateioTotal + (!form.fromMonthlyCash ? draftAmount : 0)).toFixed(2)
+  );
+  const listTotal = isCaixa ? caixaTotal : rateioTotal;
+
+  const caixaDelta = useMemo(() => {
+    if (editing) {
+      const oldAmount =
+        editing.fromMonthlyCash !== false ? Number(editing.amount || 0) : 0;
+      const nextAmount = form.fromMonthlyCash ? draftAmount : 0;
+      return Number((nextAmount - oldAmount).toFixed(2));
+    }
+    return form.fromMonthlyCash ? draftAmount : 0;
+  }, [editing, form.fromMonthlyCash, draftAmount]);
+
+  const monthOutcome = Number(
+    ((finance?.outcome ?? 0) + caixaDelta).toFixed(2)
+  );
+  const monthRemaining = Number(
+    ((finance?.remaining ?? finance?.balance ?? 0) - caixaDelta).toFixed(2)
   );
 
   const activeShares = useMemo(
@@ -83,9 +159,25 @@ export default function ExpensesPage() {
   );
 
   const hasPaidShare = activeShares.some((share) => share.status === "PAID");
+  const rateioPaid = Number(
+    activeShares
+      .reduce((sum, share) => sum + Number(share.paidAmount || 0), 0)
+      .toFixed(2)
+  );
+  const churrascoRestante =
+    activeShares.length > 0
+      ? Number(
+          Math.max(
+            0,
+            activeShares.reduce((sum, share) => sum + remainingOf(share), 0)
+          ).toFixed(2)
+        )
+      : rateioTotal;
   const playerCount = selectedIds.length;
   const sharePreview =
-    playerCount > 0 ? Number((total / playerCount).toFixed(2)) : 0;
+    playerCount > 0 && rateioTotal > 0
+      ? Number((rateioTotal / playerCount).toFixed(2))
+      : 0;
 
   const staleRateio = useMemo(() => {
     if (activeShares.length === 0) return false;
@@ -99,8 +191,10 @@ export default function ExpensesPage() {
         .reduce((sum, share) => sum + Number(share.amount || 0), 0)
         .toFixed(2)
     );
-    return sharePlayers !== selected || Math.abs(shareTotal - total) > 0.009;
-  }, [activeShares, selectedIds, total]);
+    const attendanceChanged =
+      selectedIds.length > 0 && sharePlayers !== selected;
+    return attendanceChanged || Math.abs(shareTotal - savedRateioTotal) > 0.009;
+  }, [activeShares, selectedIds, savedRateioTotal]);
 
   const { monthly, casual } = useMemo(() => {
     const sorted = filterSortByName(players, playerSearch, (player) => player.name);
@@ -113,24 +207,85 @@ export default function ExpensesPage() {
     }
   }, [expenseTypes, form.expense_type_id]);
 
-  useEffect(() => {
-    if (!editing) {
-      setForm((prev) => ({ ...prev, spentAt: day }));
-    }
-  }, [day, editing]);
+  function setPayMode(fromMonthlyCash: boolean) {
+    const switchingAway =
+      editing && (editing.fromMonthlyCash !== false) !== fromMonthlyCash;
+    if (switchingAway) setEditing(null);
+    setError("");
+    setInfo("");
+    setForm((prev) => ({
+      ...prev,
+      fromMonthlyCash,
+      amount: switchingAway ? "" : prev.amount,
+    }));
+  }
+
+  function applyDay(next: string) {
+    if (next === day) return;
+
+    skipAutoRateioRef.current = true;
+    hydratedDayRef.current = null;
+    setEditing(null);
+    setError("");
+    setInfo("");
+    setSelectedIds([]);
+    setPlayerSearch("");
+    setForm((prev) => ({
+      expense_type_id: prev.expense_type_id,
+      amount: "",
+      spentAt: next,
+      fromMonthlyCash: true,
+    }));
+    setDay(next);
+  }
 
   useEffect(() => {
-    setSelectedIds(
-      savedAttendanceKey ? savedAttendanceKey.split(",") : []
-    );
-  }, [day, savedAttendanceKey]);
+    if (!expensesFetched || !matchesFetched) return;
+    if (hydratedDayRef.current === day) return;
+
+    hydratedDayRef.current = day;
+    const savedIds = attendanceIds(match);
+    setSelectedIds(savedIds);
+
+    if (skipAutoRateioRef.current) {
+      skipAutoRateioRef.current = false;
+      return;
+    }
+
+    if (editing) return;
+
+    const hasRateio = expenses.some((item) => item.fromMonthlyCash === false);
+    setForm((prev) => ({
+      ...prev,
+      fromMonthlyCash: !(hasRateio || savedIds.length > 0),
+    }));
+  }, [day, expensesFetched, matchesFetched, expenses, match, editing]);
+
+  async function refreshFinance() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard"],
+        refetchType: "all",
+      }),
+      queryClient.invalidateQueries({ queryKey: ["matches"] }),
+    ]);
+  }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const spentAt = toApiDate(form.spentAt);
+      if (!form.fromMonthlyCash && selectedIds.length > 0) {
+        await matchesApi.upsert({
+          playedOn: form.spentAt,
+          player_ids: selectedIds,
+        });
+      }
       const payload = {
         expense_type_id: form.expense_type_id,
         amount: Number(form.amount),
-        spentAt: toApiDate(form.spentAt),
+        spentAt,
+        from_monthly_cash: form.fromMonthlyCash,
       };
       if (editing) {
         return expensesApi.update(editing.id, payload);
@@ -142,11 +297,15 @@ export default function ExpensesPage() {
         expense_type_id: expenseTypes[0]?.id || "",
         amount: "",
         spentAt: prev.spentAt,
+        fromMonthlyCash: prev.fromMonthlyCash,
       }));
       setEditing(null);
-      await queryClient.invalidateQueries({ queryKey: ["expenses"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      await queryClient.invalidateQueries({ queryKey: ["matches"] });
+      setInfo(
+        form.fromMonthlyCash
+          ? "Valor lançado no caixa do time. Gastos do mês e saldo restante atualizados."
+          : "Item somado no rateio do dia."
+      );
+      await refreshFinance();
     },
   });
 
@@ -162,9 +321,7 @@ export default function ExpensesPage() {
   const removeMutation = useMutation({
     mutationFn: expensesApi.remove,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["expenses"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      await queryClient.invalidateQueries({ queryKey: ["matches"] });
+      await refreshFinance();
     },
   });
 
@@ -194,24 +351,23 @@ export default function ExpensesPage() {
           ? "Rateio já estava gerado para este dia."
           : "Cobrança do rateio gerada."
       );
-      await queryClient.invalidateQueries({ queryKey: ["matches"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await refreshFinance();
     },
   });
 
   const payShareMutation = useMutation({
     mutationFn: matchesApi.markSharePaid,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["matches"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await refreshFinance();
     },
   });
 
   const cancelShareMutation = useMutation({
     mutationFn: matchesApi.cancelShare,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["matches"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    onSuccess: async (share) => {
+      setSelectedIds((prev) => prev.filter((id) => id !== share.playerId));
+      setInfo("Jogador cancelado. O valor foi dividido entre quem ficou na lista.");
+      await refreshFinance();
     },
   });
 
@@ -244,6 +400,7 @@ export default function ExpensesPage() {
       expense_type_id: expense.expenseTypeId || expense.expenseType?.id || "",
       amount: String(expense.amount),
       spentAt: toDateInputValue(expense.spentAt),
+      fromMonthlyCash: expense.fromMonthlyCash !== false,
     });
   }
 
@@ -263,48 +420,115 @@ export default function ExpensesPage() {
     });
   }
 
+  async function handleCopyImage() {
+    setSharing(true);
+    const result = await copyReportImageWithFallback(
+      () =>
+        renderExpensesDayPng({
+          dayLabel: formatDateBr(day),
+          caixaTotal,
+          churrascoRestante,
+          churrascoPaid: rateioPaid,
+          playerCount,
+          perPerson: sharePreview,
+          items: visibleExpenses.map((expense) => ({
+            name: expense.expenseType?.name || expense.description,
+            pay: isCaixa ? "Caixa" : "Rateio",
+            amount: Number(expense.amount || 0),
+          })),
+          shares: isCaixa
+            ? []
+            : activeShares.map((share) => ({
+                name: share.player?.name || "Jogador",
+                type: share.player?.type,
+                status: share.status,
+                amount: Number(share.amount || 0),
+                remaining: remainingOf(share),
+              })),
+        }),
+      expensesDayImageFilename(day)
+    );
+    if (result.ok) {
+      setInfo(result.message);
+      setError("");
+    } else {
+      setError(result.message);
+    }
+    setSharing(false);
+  }
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h1>Despesas</h1>
-          <p>Itens do dia, quem jogou e rateio por pessoa</p>
+          <p>
+            Despesa do caixa sai do saldo restante. Despesa do rateio é dividida
+            entre quem jogou e não desconta o caixa do time.
+          </p>
         </div>
+        
       </div>
+      
 
       <div className="toolbar">
         <div className="field">
           <label>Dia da pelada</label>
-          <input
-            type="date"
-            value={day}
-            onChange={(e) => {
-              setEditing(null);
-              setError("");
-              setInfo("");
-              setDay(e.target.value);
-            }}
-          />
+          <DateInput value={day} onChange={applyDay} />
         </div>
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={handleCopyImage}
+          disabled={sharing}
+        >
+          {sharing ? "Gerando..." : "Copiar imagem"}
+        </button>
       </div>
 
-      <div className="grid-4" style={{ marginBottom: 20 }}>
-        <div className="stat-card">
-          <span>Itens do dia</span>
-          <strong>{expenses.length}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Total do dia</span>
-          <strong>{money(total)}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Quem jogou</span>
-          <strong>{playerCount}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Por pessoa</span>
-          <strong>{playerCount && total > 0 ? money(sharePreview) : "—"}</strong>
-        </div>
+      <div
+        className={isCaixa ? "grid-3" : "grid-3"}
+        style={{ marginBottom: 20 }}
+      >
+        {isCaixa ? (
+          <>
+           
+            <div className="stat-card">
+              <span>Churrasco do mês (caixa do time)</span>
+              <strong>{money(monthOutcome)}</strong>
+            </div>
+            <div className="stat-card">
+              <span>Saldo restante total caixa</span>
+              <strong
+                style={{
+                  color: monthRemaining < 0 ? "var(--danger)" : "var(--ok)",
+                }}
+              >
+                {money(monthRemaining)}
+              </strong>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="stat-card">
+              <span>Valor do Churrasco Total à parte</span>
+              <strong>{money(churrascoRestante)}</strong>
+              {rateioPaid > 0 ? (
+                <span>Já pago {money(rateioPaid)}</span>
+              ) : null}
+            </div>
+            <div className="stat-card">
+              <span>Jogadores que ficaram para o churrasco</span>
+              <strong>{playerCount}</strong>
+            </div>
+            <div className="stat-card">
+              <span>Por pessoa</span>
+              <strong>
+                {sharePreview > 0 ? money(sharePreview) : "—"}
+              </strong>
+            </div>
+          </>
+        )}
       </div>
 
       {error ? <div className="error-box">{error}</div> : null}
@@ -374,16 +598,56 @@ export default function ExpensesPage() {
             </div>
             <div className="field">
               <label>Data</label>
-              <input
-                type="date"
+              <DateInput
                 value={form.spentAt}
-                onChange={(e) => {
-                  setForm({ ...form, spentAt: e.target.value });
-                  if (!editing) setDay(e.target.value);
-                }}
                 required
+                onChange={(next) => {
+                  if (editing) {
+                    setForm({ ...form, spentAt: next });
+                    return;
+                  }
+                  applyDay(next);
+                }}
               />
             </div>
+          </div>
+          <div className="field" style={{ marginTop: 12 }}>
+            <label>Como paga</label>
+            <div className="split-lists" style={{ marginTop: 8 }}>
+              <label className="player-pick-item">
+                <input
+                  type="radio"
+                  name="expense-pay"
+                  checked={form.fromMonthlyCash}
+                  onChange={() => setPayMode(true)}
+                />
+                <span>Churrasco do time (caixa do time)</span>
+              </label>
+              <label className="player-pick-item">
+                <input
+                  type="radio"
+                  name="expense-pay"
+                  checked={!form.fromMonthlyCash}
+                  onChange={() => setPayMode(false)}
+                />
+                <span>Rateio do dia ( valor divido entre quem  ficou para o churrasco sem desconta do caixa do time)</span>
+              </label>
+            </div>
+            {form.fromMonthlyCash ? (
+              <p style={{ color: "var(--muted)", margin: "10px 0 0" }}>
+                {draftAmount > 0
+                  ? `Este valor vai para Sai do caixa. Gastos do mês: ${money(monthOutcome)} · Saldo restante: ${money(monthRemaining)}`
+                  : "Informe o valor. Ao somar na lista, desconta gastos do mês e o saldo restante do caixa."}
+              </p>
+            ) : (
+              <p style={{ color: "var(--muted)", margin: "10px 0 0" }}>
+                {playerCount > 0 && rateioTotal > 0
+                  ? `Valor por pessoa: ${money(sharePreview)} · ${playerCount} jogador${playerCount === 1 ? "" : "es"}`
+                  : playerCount === 0
+                    ? "Marque quem jogou abaixo para ver o valor por pessoa."
+                    : "Informe o valor do item para ver o rateio."}
+              </p>
+            )}
           </div>
           <div className="actions">
             <button className="btn" type="submit">
@@ -399,6 +663,7 @@ export default function ExpensesPage() {
                     expense_type_id: expenseTypes[0]?.id || "",
                     amount: "",
                     spentAt: day,
+                    fromMonthlyCash: prev.fromMonthlyCash,
                   }));
                 }}
               >
@@ -420,9 +685,11 @@ export default function ExpensesPage() {
             flexWrap: "wrap",
           }}
         >
-          <h2 style={{ margin: 0 }}>Lista de {formatDateBr(day)}</h2>
+          <h2 style={{ margin: 0 }}>
+            {isCaixa ? "Lista do caixa" : "Lista do rateio"} · {formatDateBr(day)}
+          </h2>
           <strong style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem" }}>
-            Total: {money(total)}
+            Total: {money(listTotal)}
           </strong>
         </div>
 
@@ -438,7 +705,7 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody>
-              {expenses.map((expense) => (
+              {visibleExpenses.map((expense) => (
                 <tr key={expense.id}>
                   <td>{expense.expenseType?.name || expense.description}</td>
                   <td>{formatDateBr(expense.spentAt)}</td>
@@ -465,10 +732,12 @@ export default function ExpensesPage() {
                   ) : null}
                 </tr>
               ))}
-              {!isLoading && expenses.length === 0 ? (
+              {!isLoading && visibleExpenses.length === 0 ? (
                 <tr>
                   <td colSpan={isAdmin ? 4 : 3}>
-                    Nenhum item neste dia. Some um tipo e um valor na lista.
+                    {isCaixa
+                      ? "Nenhum item do caixa neste dia."
+                      : "Nenhum item de rateio neste dia."}
                   </td>
                 </tr>
               ) : null}
@@ -477,6 +746,8 @@ export default function ExpensesPage() {
         </div>
       </div>
 
+      {!isCaixa ? (
+        <>
       <div className="panel" style={{ marginBottom: 20 }}>
         <div
           style={{
@@ -489,19 +760,45 @@ export default function ExpensesPage() {
           }}
         >
           <h2 style={{ margin: 0 }}>Quem jogou</h2>
-          <div className="field" style={{ margin: 0, minWidth: 180 }}>
-            <label>Buscar</label>
-            <input
-              value={playerSearch}
-              onChange={(e) => setPlayerSearch(e.target.value)}
-              placeholder="Ney, Duda..."
-            />
+          <div className="actions" style={{ margin: 0, gap: 8, flexWrap: "wrap" }}>
+            <div className="field" style={{ margin: 0, minWidth: 180 }}>
+              <label>Buscar</label>
+              <input
+                value={playerSearch}
+                onChange={(e) => setPlayerSearch(e.target.value)}
+                placeholder="Ney, Duda..."
+              />
+            </div>
+            {isAdmin && !hasPaidShare ? (
+              <button
+                className="btn-secondary"
+                type="button"
+                disabled={selectedIds.length === 0}
+                onClick={() => setSelectedIds([])}
+              >
+                Desmarcar todos
+              </button>
+            ) : null}
           </div>
         </div>
 
         {hasPaidShare ? (
           <p style={{ color: "var(--muted)", marginTop: 0 }}>
             Há rateio já pago. Cancele os pagamentos para alterar a presença.
+          </p>
+        ) : null}
+
+        {playerCount > 0 && rateioTotal > 0 ? (
+          <p style={{ marginTop: 0 }}>
+            <strong>Valor por pessoa: {money(sharePreview)}</strong>
+            {" · "}
+            {money(rateioTotal)} dividido por {playerCount} jogador
+            {playerCount === 1 ? "" : "es"}
+          </p>
+        ) : playerCount > 0 ? (
+          <p style={{ color: "var(--muted)", marginTop: 0 }}>
+            O rateio divide só os itens marcados como rateio. Informe o valor
+            ou some o item na lista para ver o valor por pessoa.
           </p>
         ) : null}
 
@@ -542,7 +839,7 @@ export default function ExpensesPage() {
             <button
               className="btn"
               type="button"
-              disabled={selectedIds.length === 0 || total <= 0}
+              disabled={selectedIds.length === 0 || savedRateioTotal <= 0}
               onClick={() =>
                 run(
                   () => generateMutation.mutateAsync(),
@@ -565,9 +862,9 @@ export default function ExpensesPage() {
         ) : null}
         {activeShares.length === 0 ? (
           <p style={{ color: "var(--muted)" }}>
-            {total > 0 && playerCount > 0
+            {rateioTotal > 0 && playerCount > 0
               ? `Cada um pagaria ${money(sharePreview)}. Gere a cobrança para lançar.`
-              : "Some as despesas do dia e marque quem jogou."}
+              : "Some as despesas de rateio e marque quem jogou."}
           </p>
         ) : null}
         {activeShares.length > 0 ? (
@@ -648,6 +945,8 @@ export default function ExpensesPage() {
           </div>
         ) : null}
       </div>
+        </>
+      ) : null}
     </div>
   );
 }

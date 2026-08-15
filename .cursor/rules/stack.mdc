@@ -1,0 +1,52 @@
+---
+description: Futebol monorepo stack — dependencies, versions, and per-library practices
+alwaysApply: true
+---
+
+# Stack
+
+Two separate packages. Do not mix dependencies: the API does not use React; the panel does not use Prisma/Express.
+
+## API (repo root, Yarn)
+
+| Package | Role |
+|--------|--------|
+| `express` **4.21.2** | HTTP. Do not migrate to Express 5. |
+| `express-async-errors` | Async errors on Express 4. Keep the `import` in `server.ts`. |
+| `cors` | CORS. Currently open (`cors()`). |
+| `dotenv` | `DATABASE_URL`, `JWT_SECRET`. Never commit `.env`. |
+| `jsonwebtoken` | JWT. Secret stays on the server only. |
+| `bcryptjs` | Password hashing (JS). Do not switch to native `bcrypt` without a reason. |
+| `zod` **^4** | Route validation (`src/schemas/` + `validate()`). |
+| `@prisma/client` **7** + `@prisma/adapter-pg` + `pg` | Prisma 7 **requires** the adapter. Client is generated in `src/generated/prisma`. |
+| `prisma` (dev) | `generate` / `db push`. |
+| `ts-node-dev` + `typescript` ~5.9 | `yarn dev` → `src/server.ts` on port 3003. |
+
+```typescript
+// Prisma 7 — always use the adapter
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prismaClient = new PrismaClient({ adapter });
+```
+
+## Panel (`futebol-web`, npm)
+
+| Package | Role |
+|--------|--------|
+| `next` **16.3** | App Router. `reactCompiler: true`. No Pages Router. |
+| `react` / `react-dom` **19** | Client components only with `"use client"`. |
+| `@tanstack/react-query` **5** | HTTP cache. `QueryClient` in `Providers` via `useState`. |
+| `tailwindcss` **4** + `@tailwindcss/postcss` | `@import "tailwindcss"` + `@theme`. No `tailwind.config.js`. |
+| `babel-plugin-react-compiler` | Already enabled in Next. Do not add `useMemo`/`useCallback` just for performance. |
+
+Panel HTTP: `fetch` in `src/lib/api.ts` plus wrappers in `services.ts`. No axios.
+
+## Do not add unless asked
+
+axios, lodash, moment/dayjs, redux/zustand, shadcn, mongoose, Prisma on the frontend, Express 5, Tailwind 3/`tailwind.config.js`.
+
+## Notes
+
+- Root uses Yarn; `futebol-web` uses npm (`package-lock.json`). Respect each folder's lockfile.
+- `@types/express` ^5 with Express 4: if types act up, align to `^4`.
+- No test runner or ESLint in either `package.json`. Do not invent a test suite.
+- UI and errors are pt-BR. Screen dates use `dd/mm/aaaa`. Money is BRL.

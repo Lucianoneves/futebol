@@ -1,11 +1,16 @@
 import prismaClient, { expenseInclude } from "../../prisma";
 import { parseSpentAt } from "../../utils/date";
+import {
+  monthlyCashRelation,
+  monthlyExpenseCashFlowData,
+} from "./monthlyExpenseCash";
 
 interface UpdateExpenseRequest {
   expense_id: string;
   expense_type_id?: string;
   amount?: number;
   spentAt?: string;
+  from_monthly_cash?: boolean;
 }
 
 class UpdateExpenseService {
@@ -14,6 +19,7 @@ class UpdateExpenseService {
     expense_type_id,
     amount,
     spentAt,
+    from_monthly_cash,
   }: UpdateExpenseRequest) {
     if (!expense_id) {
       throw new Error("ID da despesa é obrigatório");
@@ -46,11 +52,14 @@ class UpdateExpenseService {
       nextType = expenseType;
     }
 
-    const nextSpentAt = spentAt
-      ? parseSpentAt(spentAt)
-      : expense.spentAt;
-
-    const nextAmount = amount !== undefined ? amount : expense.amount;
+    const nextSpentAt = spentAt ? parseSpentAt(spentAt) : expense.spentAt;
+    const nextAmount = amount !== undefined ? amount : Number(expense.amount);
+    const fromMonthlyCash = from_monthly_cash ?? expense.fromMonthlyCash;
+    const cashFlowData = monthlyExpenseCashFlowData(
+      nextType.name,
+      nextAmount,
+      nextSpentAt
+    );
 
     const expenseUpdated = await prismaClient.expense.update({
       where: { id: expense_id },
@@ -59,17 +68,12 @@ class UpdateExpenseService {
         expenseTypeId: nextType.id,
         amount: nextAmount,
         spentAt: nextSpentAt,
-        ...(expense.cashFlow
-          ? {
-              cashFlow: {
-                update: {
-                  amount: nextAmount,
-                  description: `Despesa: ${nextType.name}`,
-                  date: nextSpentAt,
-                },
-              },
-            }
-          : {}),
+        fromMonthlyCash,
+        ...monthlyCashRelation(
+          fromMonthlyCash,
+          Boolean(expense.cashFlow),
+          cashFlowData
+        ),
       },
       include: expenseInclude,
     });

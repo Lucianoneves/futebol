@@ -1,11 +1,6 @@
 import prismaClient from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
-import {
-  competenceLabel,
-  formatIsoDayBr,
-  isoDay,
-  monthRange,
-} from "../../utils/date";
+import { competenceLabel, monthRange } from "../../utils/date";
 
 interface BalanceDashboardRequest {
   year?: number;
@@ -25,85 +20,60 @@ class BalanceDashboardService {
       boxPayments,
       monthExpenses,
       expensesUntilMonth,
-      monthShares,
-      boxShares,
     ] = await Promise.all([
-        prismaClient.payment.findMany({
-          where: {
-            year: selectedYear,
-            month: selectedMonth,
-            status: { not: PaymentStatus.CANCELLED },
-          },
-          include: {
-            player: { select: { name: true } },
-          },
-          orderBy: { paidAt: "desc" },
-        }),
-        prismaClient.payment.findMany({
-          where: {
-            status: { not: PaymentStatus.CANCELLED },
-            paidAmount: { gt: 0 },
-            paidAt: { gte: start, lt: end },
-            OR: [
-              { year: { gt: selectedYear } },
-              { year: selectedYear, month: { gt: selectedMonth } },
-            ],
-          },
-          include: {
-            player: { select: { name: true } },
-          },
-        }),
-        prismaClient.payment.findMany({
-          where: {
-            status: { not: PaymentStatus.CANCELLED },
-            paidAmount: { gt: 0 },
-            OR: [
-              { year: { lt: selectedYear } },
-              { year: selectedYear, month: { lte: selectedMonth } },
-              { paidAt: { not: null, lt: end } },
-            ],
-          },
-        }),
-        prismaClient.expense.findMany({
-          where: {
-            spentAt: { gte: start, lt: end },
-          },
-          orderBy: { spentAt: "desc" },
-        }),
-        prismaClient.expense.findMany({
-          where: {
-            spentAt: { lt: end },
-          },
-        }),
-        prismaClient.matchShare.findMany({
-          where: {
-            status: { not: PaymentStatus.CANCELLED },
-            match: {
-              playedOn: {
-                gte: isoDay(start),
-                lt: isoDay(end),
-              },
-            },
-          },
-          include: {
-            player: { select: { name: true } },
-            match: { select: { playedOn: true } },
-          },
-        }),
-        prismaClient.matchShare.findMany({
-          where: {
-            status: { not: PaymentStatus.CANCELLED },
-            paidAmount: { gt: 0 },
-            match: {
-              playedOn: { lt: isoDay(end) },
-            },
-          },
-        }),
-      ]);
+      prismaClient.payment.findMany({
+        where: {
+          year: selectedYear,
+          month: selectedMonth,
+          status: { not: PaymentStatus.CANCELLED },
+        },
+        include: {
+          player: { select: { name: true } },
+        },
+        orderBy: { paidAt: "desc" },
+      }),
+      prismaClient.payment.findMany({
+        where: {
+          status: { not: PaymentStatus.CANCELLED },
+          paidAmount: { gt: 0 },
+          paidAt: { gte: start, lt: end },
+          OR: [
+            { year: { gt: selectedYear } },
+            { year: selectedYear, month: { gt: selectedMonth } },
+          ],
+        },
+        include: {
+          player: { select: { name: true } },
+        },
+      }),
+      prismaClient.payment.findMany({
+        where: {
+          status: { not: PaymentStatus.CANCELLED },
+          paidAmount: { gt: 0 },
+          OR: [
+            { year: { lt: selectedYear } },
+            { year: selectedYear, month: { lte: selectedMonth } },
+            { paidAt: { not: null, lt: end } },
+          ],
+        },
+      }),
+      prismaClient.expense.findMany({
+        where: {
+          spentAt: { gte: start, lt: end },
+          fromMonthlyCash: true,
+        },
+        orderBy: { spentAt: "desc" },
+      }),
+      prismaClient.expense.findMany({
+        where: {
+          spentAt: { lt: end },
+          fromMonthlyCash: true,
+        },
+      }),
+    ]);
 
     const income = round(
-      monthPayments.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0) +
-        monthShares.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0)
+      monthPayments.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0)
     );
     const outcome = round(
       monthExpenses.reduce((sum, item) => sum + Number(item.amount), 0)
@@ -112,8 +82,7 @@ class BalanceDashboardService {
       prepaidPayments.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0)
     );
     const collectedUntilMonth = round(
-      boxPayments.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0) +
-        boxShares.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0)
+      boxPayments.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0)
     );
     const spentUntilMonth = round(
       expensesUntilMonth.reduce((sum, item) => sum + Number(item.amount), 0)
@@ -130,15 +99,6 @@ class BalanceDashboardService {
           description: `Pagamento ${competenceLabel(item.month, item.year)} - ${item.player.name}`,
           date: item.paidAt ?? item.updatedAt,
         })),
-      ...monthShares
-        .filter((item) => Number(item.paidAmount || 0) > 0)
-        .map((item) => ({
-          id: item.id,
-          type: "INCOME" as const,
-          amount: Number(item.paidAmount),
-          description: `Rateio ${formatIsoDayBr(item.match.playedOn)} - ${item.player.name}`,
-          date: item.paidAt ?? item.updatedAt,
-        })),
       ...prepaidPayments.map((item) => ({
         id: `prepaid-${item.id}`,
         type: "PREPAID" as const,
@@ -153,7 +113,10 @@ class BalanceDashboardService {
         description: item.description,
         date: item.spentAt,
       })),
-    ].sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+    ].sort(
+      (left, right) =>
+        new Date(right.date).getTime() - new Date(left.date).getTime()
+    );
 
     return {
       filter: {

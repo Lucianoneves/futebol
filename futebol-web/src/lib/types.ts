@@ -98,6 +98,7 @@ export type Expense = {
   expenseTypeId: string;
   amount: string | number;
   spentAt: string;
+  fromMonthlyCash?: boolean;
   expenseType?: ExpenseType;
 };
 
@@ -170,7 +171,10 @@ export type MonthlyReport = {
     totalPlayers: number;
     paidCount: number;
     owingCount: number;
+    pendingCount?: number;
     paidTotal: number;
+    pendingTotal?: number;
+    expectedTotal?: number;
   };
   paid: Array<{
     player_id: string;

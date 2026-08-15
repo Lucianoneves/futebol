@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/Drawer";
 
 const links = [
-  { href: "/dashboard", label: "Dashboard" },
   { href: "/players", label: "Jogadores" },
   { href: "/payments", label: "Pagamentos" },
   { href: "/expenses", label: "Despesas" },
@@ -52,7 +51,7 @@ function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <DrawerHeader>
-        <p className="brand">FUTEBOL</p>
+        <p className="brand">FERRO VELHO</p>
         <p className="brand-sub">Gestão do time</p>
       </DrawerHeader>
 

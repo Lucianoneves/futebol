@@ -1,0 +1,1208 @@
+description: Regras globais de desenvolvimento para o projeto Futebol. Define arquitetura, organização, domínio, segurança, padrões de código, UI, API, banco de dados e comportamento esperado da IA.
+globs:
+
+"**/*"
+alwaysApply: true
+Regras Globais — Projeto Futebol
+1. Objetivo
+
+Esta regra define como a IA deve analisar, desenvolver, modificar e organizar o projeto Futebol.
+
+O objetivo é manter:
+
+arquitetura consistente;
+separação clara entre API e painel web;
+código TypeScript seguro e tipado;
+regras de negócio centralizadas;
+componentes pequenos e reutilizáveis;
+segurança de autenticação e autorização;
+consistência financeira;
+facilidade de manutenção e testes;
+compatibilidade com a arquitetura existente.
+
+Antes de implementar qualquer alteração, leia e considere o README.md do projeto como fonte de verdade sobre funcionalidades, rotas, regras de negócio e comportamento esperado.
+
+Não altere uma regra de negócio existente sem identificar explicitamente o impacto da alteração.
+
+2. Contexto do Projeto
+
+O projeto é um sistema de gestão de um time de futebol amador.
+
+Principais funcionalidades:
+
+jogadores mensalistas;
+jogadores convidados;
+pagamentos;
+cobranças;
+despesas;
+caixa;
+rateio das peladas;
+saldo;
+relatórios mensais;
+consulta individual do jogador;
+relatório público somente leitura.
+
+O repositório possui duas aplicações:
+
+futebol/
+  API
+  Express + Prisma + PostgreSQL
+
+futebol-web/
+  Painel administrativo
+  Next.js
+Stack da API
+Node.js
+Express
+TypeScript
+Prisma
+PostgreSQL
+Neon
+JWT
+Zod
+Stack do painel
+Next.js
+App Router
+React
+TypeScript
+TanStack Query
+Tailwind CSS 4
+3. Arquitetura Geral
+
+A arquitetura da API deve seguir obrigatoriamente:
+
+Rota
+  ↓
+Controller
+  ↓
+Service
+  ↓
+Prisma
+  ↓
+PostgreSQL
+
+Não coloque regras de negócio diretamente nas rotas.
+
+Não coloque consultas Prisma diretamente nos controllers quando a lógica puder pertencer ao service.
+
+Não coloque regras de negócio no frontend.
+
+Painel
+
+O painel deve seguir uma separação clara entre:
+
+Página / Componente
+        ↓
+TanStack Query / chamada HTTP
+        ↓
+API
+        ↓
+Controller
+        ↓
+Service
+        ↓
+Prisma
+        ↓
+PostgreSQL
+
+O frontend nunca deve acessar o PostgreSQL diretamente.
+
+4. Primeira Regra da IA: Analise Antes de Implementar
+
+Antes de criar ou modificar código:
+
+Leia o README.md.
+Identifique em qual aplicação a alteração deve acontecer.
+Procure arquivos relacionados à funcionalidade.
+Procure implementações existentes.
+Procure tipos e schemas existentes.
+Procure services existentes.
+Procure componentes existentes.
+Verifique as rotas da API relacionadas.
+Verifique o schema Prisma relacionado.
+Entenda os fluxos existentes antes de alterar qualquer coisa.
+
+Não crie uma segunda implementação de algo que já existe.
+
+Antes de criar:
+
+PlayerService
+PaymentService
+ReportService
+Button
+Modal
+Table
+Hook
+Schema
+Type
+
+procure primeiro se já existe uma implementação equivalente.
+
+5. Não Inventar Arquitetura
+
+Não introduza uma nova arquitetura sem necessidade.
+
+Não crie:
+
+novos padrões;
+novas bibliotecas;
+novas camadas;
+novos frameworks;
+novos sistemas de estado;
+novos mecanismos de autenticação;
+
+se o projeto já possui uma solução adequada.
+
+Antes de instalar uma dependência, verifique se o problema pode ser resolvido utilizando o que já existe no projeto.
+
+Se uma nova dependência for realmente necessária, explique o motivo antes de introduzi-la quando a mudança tiver impacto arquitetural.
+
+6. Estrutura da API
+
+A API está localizada em:
+
+futebol/
+├── prisma/
+│   └── schema.prisma
+└── src/
+    ├── routes/
+    ├── controllers/
+    └── services/
+
+Sempre respeite:
+
+routes
+  ↓
+controllers
+  ↓
+services
+  ↓
+prisma
+Routes
+
+Responsabilidade:
+
+declarar endpoint;
+middleware de autenticação;
+middleware de autorização;
+direcionar para controller.
+
+Não colocar regra de negócio complexa na rota.
+
+Controllers
+
+Responsabilidade:
+
+receber request;
+extrair parâmetros;
+chamar service;
+retornar response;
+tratar erros de entrada quando necessário.
+
+Não colocar grandes regras de negócio no controller.
+
+Services
+
+Responsabilidade:
+
+regras de negócio;
+cálculos;
+validações de domínio;
+operações envolvendo múltiplas entidades;
+chamadas ao Prisma;
+consistência financeira.
+
+Regras importantes do sistema devem estar nos services.
+
+7. Organização do Painel Web
+
+O painel utiliza Next.js App Router.
+
+Use a estrutura baseada em rotas.
+
+Exemplo:
+
+futebol-web/
+└── app/
+    ├── login/
+    │   └── page.tsx
+    │
+    ├── players/
+    │   ├── _components/
+    │   └── page.tsx
+    │
+    ├── payments/
+    │   ├── _components/
+    │   └── page.tsx
+    │
+    ├── expenses/
+    │   ├── _components/
+    │   └── page.tsx
+    │
+    ├── fees/
+    │   └── page.tsx
+    │
+    ├── reports/
+    │   └── page.tsx
+    │
+    ├── eu/
+    │   ├── page.tsx
+    │   ├── despesas/
+    │   └── peladas/
+    │
+    └── r/
+        └── [ano]/
+            └── [mês]/
+8. Componentes
+
+Antes de criar um componente, verifique se existe:
+
+app/[rota]/_components/
+
+Se o componente for utilizado somente naquela rota, prefira:
+
+app/players/_components/PlayerTable.tsx
+
+Se for realmente compartilhado por várias funcionalidades, utilize:
+
+src/components/
+
+Exemplo:
+
+src/components/
+├── Button.tsx
+├── Modal.tsx
+├── Loading.tsx
+├── EmptyState.tsx
+└── ConfirmDialog.tsx
+
+Não transforme componentes específicos em componentes globais sem necessidade.
+
+9. Server e Client Components
+
+Prefira Server Components por padrão.
+
+Use Client Components somente quando houver necessidade real, como:
+
+useState;
+useEffect;
+eventos do navegador;
+APIs do browser;
+interações complexas;
+TanStack Query;
+bibliotecas exclusivamente client-side.
+
+Não adicione "use client" automaticamente.
+
+Antes de transformar um componente em Client Component, verifique se a funcionalidade pode permanecer no servidor.
+
+10. TypeScript
+
+TypeScript é obrigatório.
+
+Evite:
+
+any
+
+sem justificativa.
+
+Prefira tipos explícitos:
+
+type Player = {
+  id: string;
+  name: string;
+  type: PlayerType;
+  active: boolean;
+};
+
+Utilize tipos compartilhados quando apropriado.
+
+Não duplique tipos idênticos em vários arquivos.
+
+11. Nomenclatura
+Componentes
+
+Utilize PascalCase:
+
+PlayerTable.tsx
+PaymentCard.tsx
+MonthlyReport.tsx
+ExpenseForm.tsx
+Funções
+
+Utilize camelCase e nomes descritivos:
+
+getPlayers()
+createPayment()
+updateExpense()
+generateMonthlyReport()
+calculateMatchShare()
+Event handlers
+
+Sempre que forem handlers de interface:
+
+handleSubmit()
+handleDelete()
+handleSearch()
+handlePayment()
+handleCopyLink()
+Booleanos
+
+Utilize nomes claros:
+
+isLoading
+isPaid
+isActive
+hasError
+canEdit
+canDelete
+Hooks
+
+Sempre iniciam com use:
+
+usePlayers()
+usePayments()
+useExpenses()
+useMonthlyReport()
+12. Regras de UI
+
+O painel deve utilizar:
+
+Tailwind CSS 4;
+componentes reutilizáveis;
+layout responsivo;
+feedback visual;
+estados de carregamento;
+estados vazios;
+mensagens de erro;
+confirmação para ações destrutivas.
+
+Evite estilos inline quando Tailwind puder resolver.
+
+Evite componentes visualmente inconsistentes.
+
+Estados obrigatórios
+
+Sempre considerar:
+
+Loading
+Success
+Empty
+Error
+Disabled
+
+Exemplo:
+
+Carregando pagamentos...
+Nenhum pagamento encontrado.
+Erro ao carregar pagamentos.
+Pagamento registrado com sucesso.
+13. TanStack Query
+
+O painel utiliza TanStack Query para comunicação com a API.
+
+Use TanStack Query para:
+
+buscar dados;
+cache;
+refetch;
+mutations;
+invalidação de queries;
+estados de loading e erro.
+
+Depois de uma mutation, invalide ou atualize as queries relacionadas.
+
+Exemplo conceitual:
+
+Registrar pagamento
+       ↓
+Mutation
+       ↓
+API
+       ↓
+Sucesso
+       ↓
+Invalidate payments
+       ↓
+Atualiza tela
+
+Não mantenha cópias desnecessárias dos mesmos dados em vários estados locais.
+
+14. Autenticação
+
+A API utiliza JWT.
+
+Rotas protegidas devem receber:
+
+Authorization: Bearer <token>
+
+Nunca coloque:
+
+JWT_SECRET;
+DATABASE_URL;
+senha;
+credenciais privadas;
+
+no código do frontend.
+
+Variáveis sensíveis devem permanecer no ambiente do servidor.
+
+15. Autorização
+
+Existem quatro conceitos de acesso:
+
+ADMIN
+USER
+PLAYER
+PÚBLICO
+ADMIN
+
+Pode:
+
+cadastrar jogador;
+editar jogador;
+desativar;
+reativar;
+liberar acesso;
+gerar cobrança;
+registrar pagamento;
+alterar pagamento;
+lançar despesa;
+editar despesa;
+remover despesa;
+configurar taxas;
+gerar rateios;
+gerar relatórios;
+gerar link público.
+USER
+
+Pode:
+
+fazer login;
+consultar listas;
+consultar relatórios.
+
+Não pode alterar dados.
+
+PLAYER
+
+Pode:
+
+/eu
+/eu/despesas
+/eu/peladas
+
+Pode somente consultar seus dados e informações permitidas.
+
+Não pode editar dados.
+
+Público
+
+O relatório:
+
+/r/:ano/:mês?t=
+
+é somente leitura.
+
+Não deve apresentar:
+
+menu administrativo;
+formulário de edição;
+botões de alteração;
+informações privadas;
+funcionalidades administrativas.
+16. Regra de Segurança da API
+
+Toda operação de escrita:
+
+POST
+PUT
+PATCH
+DELETE
+
+deve exigir autenticação e autorização de ADMIN quando definida pelo README.
+
+Operações públicas devem ser explicitamente identificadas.
+
+Não tornar uma rota pública apenas para facilitar o frontend.
+
+17. Validação com Zod
+
+Entradas externas devem ser validadas.
+
+Validar:
+
+body;
+query params;
+route params;
+datas;
+valores monetários;
+IDs;
+enums;
+autenticação quando aplicável.
+
+Exemplo:
+
+const createPaymentSchema = z.object({
+  player_id: z.string().uuid(),
+  year: z.number().int(),
+  month: z.number().int().min(1).max(12),
+  paid_amount: z.number().nonnegative().optional(),
+});
+
+Não confiar somente na validação do frontend.
+
+A API deve validar novamente.
+
+18. Banco de Dados
+
+O banco utiliza:
+
+PostgreSQL
+Prisma
+
+O schema Prisma está em:
+
+futebol/prisma/schema.prisma
+
+Antes de alterar modelos:
+
+Verifique relacionamentos existentes.
+Verifique enums.
+Verifique dados que podem existir em produção.
+Verifique impacto nas queries.
+Verifique impacto nas regras financeiras.
+Atualize o código dependente da alteração.
+
+Não altere enums ou relacionamentos sem analisar o impacto.
+
+19. Domínio Financeiro
+
+Esta é uma regra crítica.
+
+O sistema possui:
+
+Payment
+Expense
+CashFlow
+MatchShare
+
+Não confundir:
+
+despesa do caixa
+
+com:
+
+despesa de rateio
+Despesa do caixa
+
+Quando:
+
+from_monthly_cash = true
+
+a despesa reduz o caixa.
+
+Deve gerar:
+
+CashFlow OUTCOME
+Despesa de rateio
+
+Quando:
+
+from_monthly_cash = false
+
+a despesa não reduz o caixa mensal.
+
+Ela será dividida entre os jogadores da pelada.
+
+20. Rateio
+
+O rateio segue:
+
+Total das despesas de rateio
+÷
+Quantidade de jogadores
+=
+Valor individual
+
+Os centavos restantes devem ser distribuídos de forma consistente.
+
+Não arredondar simplesmente o valor individual sem verificar se:
+
+soma dos rateios = total da despesa
+
+A soma final deve fechar corretamente.
+
+21. Pagamentos
+
+Existem:
+
+MONTHLY
+CASUAL
+
+Mensalista:
+
+MONTHLY
+
+Convidado:
+
+CASUAL
+
+Taxas padrão:
+
+MONTHLY = 40
+CASUAL = 15
+
+As taxas são editáveis através de:
+
+/fees
+
+Não colocar 40 ou 15 diretamente em múltiplos arquivos.
+
+Quando o valor vier de configuração, utilize a configuração existente.
+
+22. Regra de pagamento antecipado
+
+Esta regra é crítica e não deve ser alterada sem autorização.
+
+Quando um mensalista sem atraso paga:
+
+80
+
+e a mensalidade é:
+
+40
+
+então:
+
+40 → mês atual
+40 → próximo mês
+
+Se o jogador estiver atrasado, o valor extra não deve avançar automaticamente para o próximo mês.
+
+Antes de alterar essa lógica, analise:
+
+Payment;
+status;
+saldo antecipado;
+CashFlow;
+relatório mensal.
+23. Atraso
+
+Uma cobrança pendente deve virar atrasada no:
+
+dia 21 do mês seguinte
+
+Exemplo:
+
+Agosto pendente
+        ↓
+21 de setembro
+        ↓
+Atrasado
+
+A lógica existente deve ser preservada.
+
+Não implementar uma segunda lógica de atraso em outro local.
+
+Se a lógica já existir no backend, prefira reutilizá-la.
+
+24. Relatórios
+
+O relatório mensal deve considerar corretamente:
+
+total pago;
+total pendente;
+quem pagou;
+quem deve;
+pagamentos antecipados;
+despesas;
+entradas;
+saídas;
+saldo;
+valores de rateio quando aplicável.
+
+Não calcular valores financeiros de forma independente no frontend se a API já fornece a regra oficial.
+
+O backend é a fonte de verdade para cálculos financeiros.
+
+25. Saldo
+
+O saldo deve respeitar a distinção entre:
+
+INCOME
+OUTCOME
+PREPAID
+MONTH BALANCE
+REMAINING
+
+Despesas de rateio não devem ser tratadas como saída do caixa mensal.
+
+Antes de alterar qualquer cálculo de saldo, analise:
+
+Payment
+CashFlow
+Expense
+MatchShare
+Report
+Dashboard balance
+26. Relatório Público
+
+O relatório público:
+
+/r/:ano/:mês?t=
+
+é somente leitura.
+
+O token público não deve conceder permissões administrativas.
+
+A página pública não deve:
+
+alterar pagamentos;
+alterar jogadores;
+criar despesas;
+cancelar pagamentos;
+editar informações;
+acessar rotas administrativas.
+
+O token público deve servir somente para consultar o relatório permitido.
+
+27. Link do WhatsApp
+
+O endereço utilizado no link do WhatsApp deve vir de:
+
+NEXT_PUBLIC_APP_URL
+
+Em desenvolvimento:
+
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+Em produção deve utilizar o domínio público real.
+
+Não criar URLs fixas espalhadas pelo código.
+
+Evite:
+
+const url = "http://localhost:3000/r/...";
+
+Prefira utilizar a configuração existente.
+
+28. Exportação
+
+Relatórios podem ser exportados para:
+
+Excel;
+PDF;
+imagem.
+
+A lógica de geração deve ficar separada da UI.
+
+Não coloque grandes implementações de geração de PDF ou Excel dentro de page.tsx.
+
+Prefira:
+
+services/
+utils/
+lib/
+
+ou estrutura específica da funcionalidade.
+
+29. Imagens e WhatsApp
+
+Quando houver funcionalidade de:
+
+Copiar imagem
+
+ou:
+
+Enviar no WhatsApp
+
+preserve o layout visual já existente.
+
+Não altere o design da tela apenas para facilitar a geração da imagem sem analisar o impacto na UI.
+
+30. Importação do WhatsApp
+
+A importação recebe texto livre, por exemplo:
+
+7 Ney 40 ✅
+10 Barto
+Lista de pagamento por jogo 15$
+Duda. 15 ✅
+
+A importação deve:
+
+interpretar o texto;
+identificar jogadores;
+identificar tipo quando possível;
+identificar valores;
+identificar pagamento quando possível;
+permitir prévia;
+somente aplicar quando apply: true.
+
+Não modificar a lista original automaticamente antes da confirmação.
+
+31. Tratamento de erros
+
+A API deve retornar erros consistentes.
+
+O frontend deve:
+
+exibir mensagem compreensível;
+não quebrar a página;
+permitir nova tentativa quando apropriado;
+manter os dados já carregados quando possível.
+
+Evite mostrar erros técnicos diretamente para o usuário.
+
+Não exibir:
+
+PrismaClientKnownRequestError...
+
+como mensagem principal da interface.
+
+32. Estados de carregamento
+
+Toda operação assíncrona importante deve possuir feedback.
+
+Exemplo:
+
+Registrar pagamento
+→ botão "Registrando..."
+→ desabilitado
+→ sucesso
+→ atualizar dados
+
+Evite permitir múltiplos submits acidentais.
+
+33. Operações destrutivas
+
+Para ações como:
+
+Desativar jogador
+Remover despesa
+Cancelar pagamento
+Cancelar rateio
+
+utilize confirmação quando apropriado.
+
+A interface deve deixar claro:
+
+o que será alterado;
+se a ação pode ser revertida;
+qual registro será afetado.
+34. Não duplicar regras de negócio
+
+Evite implementar a mesma regra:
+
+no frontend
++
+no controller
++
+no service
++
+em outro service
+
+A regra de negócio deve possuir uma fonte de verdade.
+
+Exemplo:
+
+Cálculo do rateio
+        ↓
+MatchShare Service
+
+O frontend apenas exibe o resultado.
+
+35. Performance
+
+Evite:
+
+requisições duplicadas;
+loops desnecessários;
+chamadas à API dentro de vários componentes;
+consultas Prisma desnecessárias;
+carregar grandes listas quando filtros podem ser utilizados.
+
+Utilize paginação ou filtros quando necessário.
+
+Não faça refetch indiscriminado depois de qualquer ação.
+
+Utilize os recursos do TanStack Query adequadamente.
+
+36. Testes
+
+As regras críticas devem possuir testes.
+
+Prioridade:
+
+autenticação;
+autorização;
+pagamentos;
+atraso;
+pagamento antecipado;
+despesas;
+rateio;
+saldo;
+relatórios;
+importação do WhatsApp.
+
+Exemplo:
+
+payment.service.ts
+payment.service.test.ts
+
+Testar principalmente cenários de borda.
+
+Exemplo:
+
+Mensalidade = 40
+Pagamento = 80
+Resultado:
+40 mês atual
+40 próximo mês
+
+Outro:
+
+Rateio = 80
+Jogadores = 3
+
+Verificar:
+soma dos valores individuais = 80
+37. Compatibilidade com o README
+
+O README.md descreve o comportamento esperado do sistema.
+
+Quando uma solicitação entrar em conflito com o README:
+
+identifique o conflito;
+informe qual regra será afetada;
+não altere silenciosamente o comportamento;
+pergunte antes de mudar uma regra de negócio importante.
+
+O README deve ser atualizado quando uma funcionalidade ou arquitetura relevante mudar.
+
+38. Não alterar funcionalidades não solicitadas
+
+Quando o usuário pedir:
+
+"corrija o botão de pagamento"
+
+não aproveite para:
+
+refatorar toda a página;
+trocar a arquitetura;
+alterar o banco;
+atualizar dependências;
+mudar o design inteiro.
+
+Faça a menor alteração necessária.
+
+Se uma refatoração for realmente necessária, explique o motivo.
+
+39. Antes de criar uma API nova
+
+Antes de criar uma nova rota:
+
+procure uma rota existente;
+verifique se ela pode ser reutilizada;
+verifique o service existente;
+verifique se o novo endpoint realmente é necessário.
+
+Não criar endpoints duplicados.
+
+Manter o padrão:
+
+POST
+GET
+PUT
+PATCH
+DELETE
+
+conforme o comportamento já definido pela API.
+
+40. Antes de alterar o banco
+
+Alterações no Prisma exigem cuidado.
+
+Antes de alterar:
+
+schema.prisma
+
+verifique:
+
+controllers;
+services;
+queries;
+tipos;
+frontend;
+relatórios;
+relacionamentos;
+enums;
+dados existentes.
+
+Não remover campos ou relações sem verificar todas as referências.
+
+41. Código limpo
+
+Sempre:
+
+prefira funções pequenas;
+use nomes claros;
+evite duplicação;
+evite comentários desnecessários;
+extraia lógica complexa;
+mantenha responsabilidades separadas;
+utilize tipos explícitos;
+mantenha imports organizados.
+
+Não use abstrações excessivas para resolver problemas simples.
+
+42. Comentários
+
+Comente principalmente:
+
+regras de negócio não óbvias;
+cálculos financeiros;
+decisões arquiteturais;
+comportamentos específicos;
+workarounds necessários.
+
+Não escreva comentários óbvios como:
+
+// Incrementa o valor
+value++;
+
+Prefira explicar o motivo:
+
+// O valor excedente de um mensalista sem atraso é
+// transferido para o próximo mês.
+43. Regra de decisão da IA
+
+Quando existir uma decisão simples coberta por estas regras:
+
+Implemente diretamente.
+
+Quando houver múltiplas soluções possíveis, mas uma delas seguir claramente a arquitetura existente:
+
+Prefira a solução já utilizada no projeto.
+
+Quando houver dúvida que possa causar:
+
+alteração de regra financeira;
+alteração de autenticação;
+alteração de autorização;
+alteração do banco;
+quebra de API;
+mudança de comportamento público;
+
+pergunte antes de implementar.
+
+44. Quando a IA deve perguntar
+
+Pergunte antes de implementar quando:
+
+o requisito estiver ambíguo;
+duas regras de negócio entrarem em conflito;
+houver risco de perda de dados;
+uma alteração de banco for destrutiva;
+uma alteração mudar permissões;
+uma alteração mudar o cálculo financeiro;
+não estiver claro se a alteração pertence à API ou ao painel;
+houver duas arquiteturas igualmente válidas;
+o README não definir o comportamento esperado.
+
+Não pergunte sobre decisões triviais já definidas por estas regras.
+
+45. Processo obrigatório antes de codificar
+
+Para qualquer tarefa relevante, siga:
+
+1. Entender a solicitação
+        ↓
+2. Ler o README relacionado
+        ↓
+3. Localizar arquivos existentes
+        ↓
+4. Identificar arquitetura utilizada
+        ↓
+5. Verificar componentes/services/types existentes
+        ↓
+6. Identificar impacto
+        ↓
+7. Implementar a menor mudança necessária
+        ↓
+8. Validar TypeScript
+        ↓
+9. Executar testes relevantes
+        ↓
+10. Revisar possíveis regressões
+46. Checklist final da IA
+
+Antes de finalizar uma implementação, confirme:
+
+A alteração segue a arquitetura existente?
+
+O README foi considerado?
+
+Não existe implementação duplicada?
+
+A regra de negócio está no local correto?
+
+O frontend não contém regra financeira indevida?
+
+A API possui validação?
+
+A autorização está correta?
+
+O TypeScript está tipado?
+
+Não foram adicionados secrets ao frontend?
+
+Não foram criadas dependências desnecessárias?
+
+Os componentes estão organizados corretamente?
+
+Estados de loading e erro foram considerados?
+
+Operações destrutivas possuem proteção adequada?
+
+Os cálculos financeiros preservam os valores?
+
+As queries relacionadas são atualizadas após mutations?
+
+Os testes relevantes foram considerados?
+
+Nenhuma funcionalidade não solicitada foi alterada?
+
+47. Princípio principal
+
+Não seja apenas um gerador de código. Analise primeiro o projeto, entenda a arquitetura e as regras de negócio, reutilize o que já existe e implemente a menor solução correta.
+
+O objetivo é produzir código:
+
+Simples
++
+Seguro
++
+Tipado
++
+Testável
++
+Manutenível
++
+Consistente com o projeto
+
+e não simplesmente produzir a maior quantidade possível de código.
+
+48. Fonte de verdade
+
+Para decisões relacionadas ao comportamento do sistema, considere como prioridade:
+
+requisito explícito do usuário;
+regras deste global.mdc;
+README.md;
+arquitetura existente;
+padrões já utilizados no código;
+boas práticas gerais.
+
+Quando uma nova solicitação alterar explicitamente uma regra existente, siga a nova solicitação, mas avalie e informe os impactos quando forem relevantes.

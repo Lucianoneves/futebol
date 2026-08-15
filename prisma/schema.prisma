@@ -105,16 +105,17 @@ model ExpenseType { // Tipos de despesa editáveis (Carne, Carvão, Linguiça, e
 }
 
 model Expense { // Despesa do time
-  id            String      @id @default(uuid())
-  description   String
-  expenseTypeId String
-  amount        Decimal     @db.Decimal(10, 2)
-  spentAt       DateTime
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id              String      @id @default(uuid())
+  description     String
+  expenseTypeId   String
+  amount          Decimal     @db.Decimal(10, 2)
+  spentAt         DateTime
+  fromMonthlyCash Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  expenseType   ExpenseType @relation(fields: [expenseTypeId], references: [id])
-  cashFlow      CashFlow?
+  expenseType     ExpenseType @relation(fields: [expenseTypeId], references: [id])
+  cashFlow        CashFlow?
 
   @@map("expenses")
 }

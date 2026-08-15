@@ -63,6 +63,8 @@ export const playersApi = {
   ) => api<Player>(`/players/${id}`, { method: "PUT", body: data }),
   deactivate: (id: string) =>
     api<Player>(`/players/${id}`, { method: "DELETE" }),
+  activate: (id: string) =>
+    api<Player>(`/players/${id}/activate`, { method: "PATCH" }),
   history: (id: string, year: number) =>
     api<PlayerYearHistory>(`/players/${id}/history?year=${year}`),
   grantAccess: (id: string, data: { email: string; password: string }) =>
@@ -125,6 +127,7 @@ export const expensesApi = {
     expense_type_id: string;
     amount: number;
     spentAt?: string;
+    from_monthly_cash?: boolean;
   }) => api<Expense>("/expenses", { method: "POST", body: data }),
   update: (
     id: string,
@@ -132,6 +135,7 @@ export const expensesApi = {
       expense_type_id: string;
       amount: number;
       spentAt: string;
+      from_monthly_cash: boolean;
     }>
   ) => api<Expense>(`/expenses/${id}`, { method: "PUT", body: data }),
   remove: (id: string) =>

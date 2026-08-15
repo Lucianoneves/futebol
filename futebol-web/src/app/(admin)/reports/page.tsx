@@ -6,6 +6,7 @@ import { dashboardApi, reportsApi } from "@/lib/services";
 import {
   currentYearMonth,
   filterSortByName,
+  money,
   NAME_SEARCH_PLACEHOLDER,
 } from "@/lib/format";
 import {
@@ -113,7 +114,7 @@ export default function ReportsPage() {
       <div className="page-header">
         <div>
           <h1>Relatórios</h1>
-          <p>Quem pagou e quem deve no mês · Excel e PDF com arrecadação, despesas e saldo</p>
+          <p>Quem pagou e Em haver no mês · Excel e PDF com arrecadação, despesas e saldo</p>
         </div>
       </div>
 
@@ -197,6 +198,39 @@ export default function ReportsPage() {
       ) : null}
 
       {isLoading ? <p>Carregando...</p> : null}
+
+      {finance?.prepaid ? (
+        <p style={{ color: "var(--muted)", marginTop: 0 }}>
+          Adiantado para o próximo mês (não entra nas receitas vigentes):{" "}
+          <strong>{money(finance.prepaid)}</strong>
+          {" · "}
+          Valor em caixa deste  mês:{" "}
+          <strong
+            style={{
+              color:
+                (finance.monthBalance ?? 0) < 0
+                  ? "var(--danger)"
+                  : "var(--ok)",
+            }}
+          >
+            {money(finance.monthBalance ?? 0)}
+          </strong>
+        </p>
+      ) : finance ? (
+        <p style={{ color: "var(--muted)", marginTop: 0 }}>
+          Resultado deste mês (receitas − despesas):{" "}
+          <strong
+            style={{
+              color:
+                (finance.monthBalance ?? 0) < 0
+                  ? "var(--danger)"
+                  : "var(--ok)",
+            }}
+          >
+            {money(finance.monthBalance ?? 0)}
+          </strong>
+        </p>
+      ) : null}
 
       <MonthlyReportView summary={data?.summary} paid={paid} owing={owing} />
     </div>

@@ -1,6 +1,7 @@
 import prismaClient from "../../prisma";
+import { PaymentStatus } from "../../generated/prisma/enums";
 import { ApplyOverduePaymentsService } from "../payment/ApplyOverduePaymentsService";
-import { OVERDUE_DAY } from "../../utils/date";
+import { isCompetenceBillingOpen, OVERDUE_DAY } from "../../utils/date";
 import { withRemaining } from "../match/matchInclude";
 
 interface PlayerYearHistoryRequest {
@@ -46,6 +47,14 @@ class PlayerYearHistoryService {
       const payment = byMonth.get(month);
 
       if (!payment) {
+        return { month, payment: null };
+      }
+
+      const unpaidPending =
+        payment.status === PaymentStatus.PENDING &&
+        Number(payment.paidAmount) <= 0;
+
+      if (unpaidPending && !isCompetenceBillingOpen(year, month)) {
         return { month, payment: null };
       }
 

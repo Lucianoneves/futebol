@@ -39,5 +39,5 @@ export function clearSession() {
 }
 
 export function homePath(role: Role) {
-  return role === "PLAYER" ? "/eu" : "/dashboard";
+  return role === "PLAYER" ? "/eu" : "/players";
 }
