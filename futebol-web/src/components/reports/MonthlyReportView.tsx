@@ -4,6 +4,7 @@ import {
   PLAYER_TYPE_LABEL,
   paymentStatusClass,
   playerTypeClass,
+  STAT_CARD_HINT,
 } from "@/lib/format";
 import type { MonthlyReport } from "@/lib/types";
 
@@ -58,15 +59,19 @@ export function MonthlyReportView({
         <div className="stat-card">
           <span>Total arrecadado</span>
           <strong>{money(paidTotal)}</strong>
-          <span>{playersPaidLabel(paidCount)}</span>
+          <span>
+            {playersPaidLabel(paidCount)} · {STAT_CARD_HINT.collected}
+          </span>
         </div>
         <div className="stat-card">
           <span>Pendente</span>
           <strong>{money(pendingTotal)}</strong>
-          <span>{playersPendingLabel(pendingCount)}</span>
+          <span>
+            {playersPendingLabel(pendingCount)} · {STAT_CARD_HINT.pending}
+          </span>
         </div>
         <div className="stat-card">
-          <span>Esperado no mês</span>
+          <span> Valor esperado  Atualizado</span>
           <strong>{money(expectedTotal)}</strong>
         </div>
       </div>

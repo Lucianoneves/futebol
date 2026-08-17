@@ -11,9 +11,10 @@ datasource db {
   provider = "postgresql"
 }
 
-enum PlayerType { // Tipo de jogador (mensal ou casual)
+enum PlayerType { // Tipo de jogador (mensal, casual ou sem taxa)
   MONTHLY // Mensal
   CASUAL // Casual
+  FEES // Neutro — sem cobrança
 }
 
 enum PaymentStatus { // Status do pagamento (pendente, pago, vencido, cancelado)

@@ -43,7 +43,7 @@ export default function FeesPage() {
       <div className="page-header">
         <div>
           <h1>Taxas</h1>
-          <p>Valores padrão de mensalista e convidado</p>
+          <p>Mensalista e convidado têm valor. Sem taxa (FEES) fica R$ 0 e não gera cobrança.</p>
         </div>
       </div>
 
@@ -94,7 +94,11 @@ export default function FeesPage() {
               {fees.map((fee) => (
                 <tr key={fee.id}>
                   <td>{PLAYER_TYPE_LABEL[fee.type] || fee.type}</td>
-                  <td>{money(fee.amount)}</td>
+                  <td>
+                    {fee.type === "FEES"
+                      ? "Sem cobrança"
+                      : money(fee.amount)}
+                  </td>
                   <td>
                     {new Date(fee.updatedAt).toLocaleString("pt-BR")}
                   </td>

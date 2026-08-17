@@ -17,7 +17,11 @@ export const optionalYearMonthSchema = z.object({
   month: monthSchema.optional(),
 });
 
-export const playerTypeSchema = z.enum(["MONTHLY", "CASUAL"], {
+export const playerTypeSchema = z.enum(["MONTHLY", "CASUAL", "FEES"], {
+  message: "Tipo deve ser MONTHLY, CASUAL ou FEES",
+});
+
+export const chargeablePlayerTypeSchema = z.enum(["MONTHLY", "CASUAL"], {
   message: "Tipo deve ser MONTHLY ou CASUAL",
 });
 

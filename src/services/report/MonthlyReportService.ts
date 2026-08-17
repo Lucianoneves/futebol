@@ -43,6 +43,10 @@ class MonthlyReportService {
       const unpaidPending =
         payment?.status === PaymentStatus.PENDING && paidAmount <= 0;
 
+      if (player.type === PlayerType.FEES && !payment) {
+        continue;
+      }
+
       if (
         player.type === PlayerType.MONTHLY &&
         !billingOpen &&

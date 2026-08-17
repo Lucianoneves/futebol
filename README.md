@@ -17,14 +17,16 @@ Fluxo da API: **Rota → Controller → Service → Prisma**.
 
 | Camada | Tecnologias |
 |--------|-------------|
-| API | Node.js, Express, TypeScript, Prisma, PostgreSQL (Neon), JWT, Zod |
-| Painel | Next.js (App Router), TypeScript, TanStack Query, Tailwind CSS 4 |
+| API | Node.js, Express 4, TypeScript, Prisma 7, PostgreSQL (Neon), JWT, Zod 4 |
+| Painel | Next.js 16 (App Router), React 19, TypeScript, TanStack Query 5, Tailwind CSS 4 |
+
+A raiz usa **Yarn**; `futebol-web/` usa **npm**. Não misture os lockfiles.
 
 ## Quem pode o quê
 
 | Quem | Acesso |
 |------|--------|
-| **ADMIN** | Login no painel. Cadastra, edita, gera cobrança, registra pagamento, lança despesa. Libera acesso do jogador. |
+| **ADMIN** | Login no painel. Cadastra, edita, desativa/reativa, gera cobrança, registra pagamento, lança despesa (caixa ou rateio). Libera acesso do jogador. |
 | **USER** | Login no painel. Só consulta (listas e relatórios). Sem botões de alterar. |
 | **PLAYER** | Login no mesmo site. Vai para `/eu`. Vê a própria situação, despesas do time e o rateio dele. Sem editar. |
 | **Link do grupo** | Sem login. Página pública **somente consulta** (quem pagou / quem deve). Sem menu, sem formulário, sem edição. |
@@ -79,7 +81,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 npm run dev
 ```
 
-Abra `http://localhost:3000` e faça login. No deploy, o mesmo endereço serve o painel e a consulta do jogador (`/eu`).
+Abra `http://localhost:3000` e faça login. No deploy, o mesmo endereço serve o painel e a consulta do jogador (`/eu`). A rota antiga `/dashboard` redireciona para `/players`.
 
 ## Painel
 
@@ -89,8 +91,9 @@ Abra `http://localhost:3000` e faça login. No deploy, o mesmo endereço serve o
 | `/players` | Mensalistas e convidados, busca, ordem A–Z, histórico anual, importar lista do WhatsApp, **liberar acesso**, reativar, copiar imagem |
 | `/payments` | Cobrança do mês, busca, gerar mensalistas, somar/subtrair, copiar link / WhatsApp / imagem |
 | `/expenses` | Despesas do dia: **caixa** (sai do saldo) ou **rateio** (churrasco, dividido por quem ficou). Data, quem jogou, copiar imagem |
-| `/fees` | Taxas padrão MONTHLY / CASUAL |
-| `/reports` | Relatório mensal: quem pagou / quem deve, link WhatsApp, Excel, PDF e imagem |
+| `/fees` | Taxas padrão MONTHLY / CASUAL. FEES (sem taxa) é R$ 0 e não gera cobrança |
+| `/reports` | Relatório mensal: quem pagou / quem deve, adiantado, caixa do mês, link WhatsApp, Excel, PDF e imagem |
+| `/dashboard` | Redireciona para `/players` (o saldo ficou em Relatórios e Despesas) |
 | `/eu` | Consulta do jogador: em dia / em aberto / atrasado e meses |
 | `/eu/despesas` | Despesas do time (só ver) |
 | `/eu/peladas` | Rateio das peladas em que o jogador entrou (só ver) |
@@ -98,20 +101,20 @@ Abra `http://localhost:3000` e faça login. No deploy, o mesmo endereço serve o
 
 ### O que já funciona
 
-- **Jogadores** em duas listas (Mensalistas / Convidados), numerados, A–Z, busca pelo nome. **Histórico** mostra o que pagou em cada mês do ano. Dá para **desativar** e **reativar**. **Copiar imagem** gera a lista no visual da tela.
+- **Jogadores** em três listas (Mensalistas / Convidados / Sem taxa), numerados, A–Z, busca pelo nome. **Histórico** mostra o que pagou em cada mês do ano. Dá para **desativar** e **reativar**. **Copiar imagem** gera a lista no visual da tela. Tipo **FEES** não tem mensalidade.
 - **Atraso automático**: cobrança pendente vira **Atrasado** no **dia 21 do mês seguinte** (ex.: agosto em aberto → 21/09). Roda ao abrir pagamentos/relatório e a cada hora no servidor.
 - **Lista do WhatsApp**: cola a lista do grupo (`Ney 40 ✅`, `Barto`, `por jogo 15$`) → cadastra jogadores e atualiza pagamentos.
 - **Pagamentos**: **Gerar cobrança dos mensalistas** cria a pendência de todos no mês. Listas A–Z (mensalistas e convidados), busca, totais arrecadado / pendente. Se a cobrança já existe e ainda está pendente, **Registrar** reaproveita. **Valor pago agora** lança 40 ou 80. Dá para somar ou subtrair depois. Mesmos botões de relatório: **Copiar link**, **Enviar no WhatsApp**, **Copiar imagem**.
 - **Mensalista sem atraso** que paga **80** (taxa 40): 40 quitam o mês vigente e 40 vão como saldo para o **próximo mês**. Se estiver atrasado, o extra não avança.
 - **Despesas do dia**: cada item é **caixa** ou **rateio**. Caixa desconta o saldo restante do time. Rateio (churrasco) é dividido entre quem ficou e **não** sai do caixa. O calendário usa seletor de data (`dd/mm/aaaa`). **Copiar imagem** do dia.
-- **Rateio da pelada**: na página de despesas, filtra o **dia**, marca **quem jogou** e gera a cobrança só dos itens de rateio (`total rateio ÷ quem jogou`). Cada um paga o próprio valor; centavos de arredondamento são distribuídos. Se alguém já pagou, precisa cancelar para recalcular.
+- **Rateio da pelada**: na página de despesas, filtra o **dia**, marca **quem ficou** (mensalista, convidado e **sem taxa**) e gera a cobrança só dos itens de rateio (`total rateio ÷ quem ficou`). Esse valor é à parte: **não** sai do caixa e **não** é mensalidade. Cada um paga o próprio valor; centavos de arredondamento são distribuídos. Se alguém já pagou, precisa cancelar para recalcular.
 - **Consulta do jogador**: em **Jogadores → Acesso**, o admin cria e-mail e senha. O jogador entra no mesmo site (depois no deploy, no celular) e cai em `/eu`: situação do mês, despesas do time e o rateio dele. Não edita nada.
-- **Relatórios**: cards de total pago no mês, em dia e em aberto; duas tabelas (quem pagou / quem deve); busca pelo nome. Adiantado para o próximo mês e valor em caixa deste mês. **Baixar Excel** e **Baixar PDF** com arrecadação, despesas e saldo.
+- **Relatórios**: cards de total pago no mês, em dia e em aberto; duas tabelas (quem pagou / quem deve); busca pelo nome. Adiantado para o próximo mês e valor em caixa deste mês (despesa de rateio **não** entra no caixa). **Baixar Excel** e **Baixar PDF** com arrecadação, despesas e saldo. Não existe mais tela `/dashboard`.
 - **Enviar no WhatsApp**: **Copiar link** ou **Enviar no WhatsApp** manda a página pública do relatório. **Copiar imagem** gera um PNG no visual da tela (jogadores, pagamentos, despesas e relatórios). O link é **somente consulta** — só o admin altera o sistema.
 
 ## API
 
-Quase todas as rotas pedem `Authorization: Bearer <token>`. Escrita exige admin.
+Quase todas as rotas pedem `Authorization: Bearer <token>`. Escrita exige admin. **Gestão** = ADMIN ou USER (não jogador). **Token** = qualquer usuário logado. **Jogador** = role PLAYER.
 
 | Método | Rota | Auth | Descrição |
 |--------|------|------|-----------|
@@ -122,41 +125,41 @@ Quase todas as rotas pedem `Authorization: Bearer <token>`. Escrita exige admin.
 | GET | `/me/shares` | Jogador | Rateios do jogador logado |
 | PUT | `/users` | Gestão | Atualizar nome/e-mail |
 | POST | `/players` | Admin | Criar jogador |
-| GET | `/players` | Token | Listar (`?active=true\|false`) |
-| GET | `/players/:id` | Token | Detalhar jogador |
-| GET | `/players/:id/history` | Token | Histórico anual (`year`) |
+| GET | `/players` | Gestão | Listar (`?active=true\|false`) |
+| GET | `/players/:id` | Gestão | Detalhar jogador |
+| GET | `/players/:id/history` | Gestão | Histórico anual (`year`) |
 | PUT | `/players/:id` | Admin | Editar jogador |
 | DELETE | `/players/:id` | Admin | Desativar (`active = false`) |
 | PATCH | `/players/:id/activate` | Admin | Reativar jogador |
 | POST | `/players/:id/access` | Admin | Liberar login do jogador (`email` + `password`) |
 | POST | `/imports/whatsapp` | Admin | Prévia/importar lista colada (`apply`) |
-| GET | `/fees` | Token | Listar taxas (cria 40 / 15 na 1ª vez) |
-| PUT | `/fees` | Admin | Atualizar taxa (`type` + `amount`) |
+| GET | `/fees` | Gestão | Listar taxas (cria 40 / 15 / 0 na 1ª vez) |
+| PUT | `/fees` | Admin | Atualizar taxa MONTHLY ou CASUAL (`type` + `amount`). FEES não altera |
 | POST | `/payments` | Admin | Gerar ou reaproveitar cobrança (`paid_amount` opcional) |
 | POST | `/payments/generate-month` | Admin | Gerar cobrança de todos os mensalistas do mês |
-| GET | `/payments` | Token | Listar (`player_id`, `year`, `month`, `status`) |
-| GET | `/payments/:id` | Token | Detalhar pagamento |
+| GET | `/payments` | Gestão | Listar (`player_id`, `year`, `month`, `status`) |
+| GET | `/payments/:id` | Gestão | Detalhar pagamento |
 | PUT | `/payments/:id` | Admin | Editar valor total / notas |
 | PATCH | `/payments/:id/add` | Admin | Somar ou subtrair (`value` pode ser negativo). Extra de mensalista vai ao próximo mês |
 | PATCH | `/payments/:id/paid` | Admin | Quitar (+ CashFlow INCOME) |
 | PATCH | `/payments/:id/overdue` | Admin | Marcar atrasado |
 | PATCH | `/payments/:id/cancel` | Admin | Cancelar |
-| GET | `/expense-types` | Token | Listar tipos (Carne, Carvão, Campo…) |
+| GET | `/expense-types` | Gestão | Listar tipos (Carne, Carvão, Campo…) |
 | POST | `/expense-types` | Admin | Cadastrar novo tipo |
 | POST | `/expenses` | Admin | Somar item. `from_monthly_cash: true` (padrão) sai do caixa; `false` vai para o rateio do dia |
-| GET | `/expenses` | Token | Listar (`?expense_type_id=`, `?spentAt=`, `?year=` `&month=`) |
+| GET | `/expenses` | Token | Listar (`?expense_type_id=`, `?spentAt=`, `?year=` `&month=`) — jogador também usa em `/eu/despesas` |
 | GET | `/expenses/:id` | Token | Detalhar despesa |
 | PUT | `/expenses/:id` | Admin | Editar tipo, valor, data ou `from_monthly_cash` |
 | DELETE | `/expenses/:id` | Admin | Remover |
-| GET | `/matches` | Token | Pelada do dia (`?playedOn=AAAA-MM-DD`) |
+| GET | `/matches` | Gestão | Pelada do dia (`?playedOn=AAAA-MM-DD`) |
 | POST | `/matches` | Admin | Salvar quem jogou (cria ou atualiza a pelada do dia) |
 | POST | `/matches/:id/shares` | Admin | Gerar cobrança do rateio (só despesas `from_monthly_cash: false`) |
 | PATCH | `/match-shares/:id/paid` | Admin | Quitar rateio (+ CashFlow INCOME) |
 | PATCH | `/match-shares/:id/cancel` | Admin | Cancelar rateio |
-| GET | `/reports/monthly` | Token | Relatório (`year`, `month`) com `paidTotal` |
-| GET | `/reports/share` | Token | Token do link público (`year`, `month`) |
+| GET | `/reports/monthly` | Gestão | Relatório (`year`, `month`) com `paidTotal` |
+| GET | `/reports/share` | Gestão | Token do link público (`year`, `month`) |
 | GET | `/public/reports/monthly` | Token do link | Relatório público somente leitura (`year`, `month`, `token`) |
-| GET | `/dashboard/balance` | Token | Saldo (`year`, `month`): `income`, `outcome` (só caixa), `prepaid`, `monthBalance`, `remaining` |
+| GET | `/dashboard/balance` | Gestão | Saldo (`year`, `month`): `income`, `outcome` (só caixa), `prepaid`, `monthBalance`, `remaining` |
 
 Se o usuário já existia antes do campo `role`: faça login de novo. Para promover admin:
 
@@ -274,8 +277,8 @@ GET /public/reports/monthly?year=2026&month=8&token=abc123
 ```text
 User (login / ADMIN, USER ou PLAYER)
   └── Player (se for PLAYER)
-FeeSetting (MONTHLY = 40, CASUAL = 15 — editáveis)
-Player (MONTHLY | CASUAL)
+FeeSetting (MONTHLY = 40, CASUAL = 15, FEES = 0 — sem cobrança)
+Player (MONTHLY | CASUAL | FEES)
   └── Payment (mês/ano, valor, pago parcial, status)
          └── CashFlow (INCOME)
 

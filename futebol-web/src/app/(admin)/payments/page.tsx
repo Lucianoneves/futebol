@@ -16,6 +16,7 @@ import {
   filterSortByName,
   partitionByPlayerType,
   NAME_SEARCH_PLACEHOLDER,
+  STAT_CARD_HINT,
 } from "@/lib/format";
 import {
   copyReportImageWithFallback,
@@ -68,18 +69,24 @@ export default function PaymentsPage() {
   const selected = payments.find((item) => item.id === selectedId) || null;
 
   const sortedPlayers = useMemo(
-    () => [...players].sort((left, right) => sortByPtName(left.name, right.name)),
+    () =>
+      [...players]
+        .filter((player) => player.type !== "FEES")
+        .sort((left, right) => sortByPtName(left.name, right.name)),
     [players]
   );
 
-  const { monthly, casual, collected, expected, pending } = useMemo(() => {
-    const active = payments.filter((item) => item.status !== "CANCELLED");
+  const { monthly, casual, fees, collected, expected, pending } = useMemo(() => {
+    const billed = payments.filter(
+      (item) =>
+        item.status !== "CANCELLED" && item.player?.type !== "FEES"
+    );
     const sorted = filterSortByName(
-      active,
+      billed,
       search,
       (item) => item.player?.name || ""
     );
-    const { monthly, casual } = partitionByPlayerType(
+    const { monthly, casual, fees } = partitionByPlayerType(
       sorted,
       (item) => item.player?.type
     );
@@ -87,12 +94,13 @@ export default function PaymentsPage() {
     return {
       monthly,
       casual,
-      collected: active.reduce(
+      fees,
+      collected: billed.reduce(
         (sum, item) => sum + Number(item.paidAmount || 0),
         0
       ),
-      expected: active.reduce((sum, item) => sum + Number(item.amount || 0), 0),
-      pending: active.reduce((sum, item) => sum + remainingOf(item), 0),
+      expected: billed.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+      pending: billed.reduce((sum, item) => sum + remainingOf(item), 0),
     };
   }, [payments, search]);
 
@@ -321,14 +329,17 @@ export default function PaymentsPage() {
         <div className="stat-card">
           <span>Total arrecadado</span>
           <strong>{money(collected)}</strong>
+          <span>{STAT_CARD_HINT.collected}</span>
         </div>
         <div className="stat-card">
           <span>Pendente</span>
           <strong>{money(pending)}</strong>
+          <span>{STAT_CARD_HINT.pending}</span>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" title={STAT_CARD_HINT.expected}>
           <span>Esperado no mês</span>
           <strong>{money(expected)}</strong>
+          <span>{STAT_CARD_HINT.expected}</span>
         </div>
       </div>
 
@@ -502,6 +513,18 @@ export default function PaymentsPage() {
           onSelect={selectPayment}
           onAction={(id, action) => actionMutation.mutate({ id, action })}
         />
+        {fees.length > 0 ? (
+          <PaymentGroup
+            title={`Sem taxa (${fees.length}) · ${money(
+              fees.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0)
+            )}`}
+            payments={fees}
+            isAdmin={isAdmin}
+            emptyText="Nenhum pagamento sem taxa neste mês."
+            onSelect={selectPayment}
+            onAction={(id, action) => actionMutation.mutate({ id, action })}
+          />
+        ) : null}
       </div>
 
       {isAdmin && selected ? (

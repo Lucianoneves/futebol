@@ -1,6 +1,11 @@
 import prismaClient from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
-import { resolvePlayerFees, feeFromPlayer, DEFAULT_FEES } from "../player/playerFees";
+import {
+  DEFAULT_FEES,
+  resolvePlayerFees,
+  feeFromPlayer,
+  isChargeableType,
+} from "../player/playerFees";
 import { assertYearMonth, nextCompetence } from "../../utils/date";
 import { MarkPaymentPaidService } from "../payment/MarkPaymentPaidService";
 import {
@@ -76,7 +81,9 @@ class ImportWhatsAppPlayerListService {
       if (existing && !existing.active) player_action = "reactivate_player";
 
       let payment_action: PaymentAction = "create_pending";
-      if (item.paid) {
+      if (existing && !isChargeableType(existing.type)) {
+        payment_action = "none";
+      } else if (item.paid) {
         payment_action = monthsToPay > 1 ? "pay_months" : "mark_paid";
       }
 
@@ -124,6 +131,17 @@ class ImportWhatsAppPlayerListService {
           data: { active: true },
         });
         byName.set(normalizePlayerName(player.name), player);
+      }
+
+      if (!isChargeableType(player.type)) {
+        applied.push({
+          ...row,
+          type: player.type,
+          player_id: player.id,
+          months_to_pay: 0,
+          payment_action: "none",
+        });
+        continue;
       }
 
       const fee = feeFromPlayer(player);

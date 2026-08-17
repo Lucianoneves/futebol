@@ -1,6 +1,7 @@
 import prismaClient from "../../prisma";
-import { PlayerType } from "../../generated/prisma/enums";
-import { resolvePlayerFees } from "./playerFees";
+import { PaymentStatus, PlayerType } from "../../generated/prisma/enums";
+import { isPlayerType, resolvePlayerFees } from "./playerFees";
+import { CancelPaymentService } from "../payment/CancelPaymentService";
 
 interface UpdatePlayerRequest {
   player_id: string;
@@ -34,8 +35,8 @@ class UpdatePlayerService {
       throw new Error("Jogador não encontrado");
     }
 
-    if (type && type !== PlayerType.MONTHLY && type !== PlayerType.CASUAL) {
-      throw new Error("Tipo deve ser MONTHLY ou CASUAL");
+    if (type && !isPlayerType(type)) {
+      throw new Error("Tipo deve ser MONTHLY, CASUAL ou FEES");
     }
 
     if (email) {
@@ -66,10 +67,34 @@ class UpdatePlayerService {
         email: email !== undefined ? email || null : player.email,
         phone: phone !== undefined ? phone || null : player.phone,
         type: nextType,
-        monthlyFee: monthlyFee !== undefined ? monthlyFee : fees.monthlyFee,
-        casualFee: casualFee !== undefined ? casualFee : fees.casualFee,
+        monthlyFee:
+          nextType === PlayerType.FEES
+            ? null
+            : monthlyFee !== undefined
+              ? monthlyFee
+              : fees.monthlyFee,
+        casualFee:
+          nextType === PlayerType.FEES
+            ? null
+            : casualFee !== undefined
+              ? casualFee
+              : fees.casualFee,
       },
     });
+
+    if (player.type !== PlayerType.FEES && nextType === PlayerType.FEES) {
+      const openPayments = await prismaClient.payment.findMany({
+        where: {
+          playerId: player_id,
+          status: { in: [PaymentStatus.PENDING, PaymentStatus.OVERDUE] },
+          paidAmount: 0,
+        },
+      });
+      const cancelPaymentService = new CancelPaymentService();
+      for (const payment of openPayments) {
+        await cancelPaymentService.execute({ payment_id: payment.id });
+      }
+    }
 
     return playerUpdated;
   }

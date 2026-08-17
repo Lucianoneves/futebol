@@ -20,6 +20,7 @@ function paymentActionLabel(row: WhatsAppImportRow) {
   if (row.payment_action === "mark_paid") return "Marcar pago";
   if (row.payment_action === "already_paid") return "Já pago";
   if (row.payment_action === "create_pending") return "Gerar pendente";
+  if (row.payment_action === "none") return "Sem cobrança";
   return "-";
 }
 

@@ -196,7 +196,7 @@ export default function ExpensesPage() {
     return attendanceChanged || Math.abs(shareTotal - savedRateioTotal) > 0.009;
   }, [activeShares, selectedIds, savedRateioTotal]);
 
-  const { monthly, casual } = useMemo(() => {
+  const { monthly, casual, fees } = useMemo(() => {
     const sorted = filterSortByName(players, playerSearch, (player) => player.name);
     return partitionByPlayerType(sorted, (player) => player.type);
   }, [players, playerSearch]);
@@ -644,7 +644,7 @@ export default function ExpensesPage() {
                 {playerCount > 0 && rateioTotal > 0
                   ? `Valor por pessoa: ${money(sharePreview)} · ${playerCount} jogador${playerCount === 1 ? "" : "es"}`
                   : playerCount === 0
-                    ? "Marque quem jogou abaixo para ver o valor por pessoa."
+                    ? "Marque quem ficou, inclusive sem taxa. Esse valor não é mensalidade e não sai do caixa."
                     : "Informe o valor do item para ver o rateio."}
               </p>
             )}
@@ -759,7 +759,13 @@ export default function ExpensesPage() {
             marginBottom: 12,
           }}
         >
-          <h2 style={{ margin: 0 }}>Quem jogou</h2>
+          <div>
+            <h2 style={{ margin: 0 }}>Quem ficou para o churrasco</h2>
+            <p style={{ color: "var(--muted)", margin: "6px 0 0" }}>
+              Mensalistas, convidados e jogadores sem taxa entram neste rateio.
+              Não desconta o caixa e não gera mensalidade.
+            </p>
+          </div>
           <div className="actions" style={{ margin: 0, gap: 8, flexWrap: "wrap" }}>
             <div className="field" style={{ margin: 0, minWidth: 180 }}>
               <label>Buscar</label>
@@ -802,7 +808,7 @@ export default function ExpensesPage() {
           </p>
         ) : null}
 
-        <div className="split-lists">
+        <div className="split-lists cols-3">
           <PlayerPickGroup
             title="Mensalistas"
             players={monthly}
@@ -814,6 +820,14 @@ export default function ExpensesPage() {
           <PlayerPickGroup
             title="Convidados"
             players={casual}
+            selectedIds={selectedIds}
+            disabled={!isAdmin || hasPaidShare}
+            onToggle={togglePlayer}
+            onSetGroup={setGroup}
+          />
+          <PlayerPickGroup
+            title="Sem taxa"
+            players={fees}
             selectedIds={selectedIds}
             disabled={!isAdmin || hasPaidShare}
             onToggle={togglePlayer}

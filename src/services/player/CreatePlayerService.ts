@@ -1,6 +1,5 @@
 import prismaClient from "../../prisma";
-import { PlayerType } from "../../generated/prisma/enums";
-import { resolvePlayerFees } from "./playerFees";
+import { isPlayerType, resolvePlayerFees } from "./playerFees";
 
 interface CreatePlayerRequest {
   name: string;
@@ -15,8 +14,8 @@ class CreatePlayerService {
       throw new Error("Nome e tipo são obrigatórios");
     }
 
-    if (type !== PlayerType.MONTHLY && type !== PlayerType.CASUAL) {
-      throw new Error("Tipo deve ser MONTHLY ou CASUAL");
+    if (!isPlayerType(type)) {
+      throw new Error("Tipo deve ser MONTHLY, CASUAL ou FEES");
     }
 
     if (email) {

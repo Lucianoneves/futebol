@@ -150,6 +150,7 @@ export function partitionByPlayerType<T>(
   return {
     monthly: items.filter((item) => getType(item) === "MONTHLY"),
     casual: items.filter((item) => getType(item) === "CASUAL"),
+    fees: items.filter((item) => getType(item) === "FEES"),
   };
 }
 
@@ -181,10 +182,29 @@ export const PAYMENT_STATUS_LABEL: Record<string, string> = {
 export const PLAYER_TYPE_LABEL: Record<string, string> = {
   MONTHLY: "Mensalista",
   CASUAL: "Convidado",
+  FEES: "Sem taxa",
 };
 
+export const STAT_CARD_HINT = {
+  collected: "O que já entrou neste mês",
+  pending: "Ainda falta receber das cobranças",
+  expected: "Valor cobrado no mês. Pagar agora não altera este número.",
+} as const;
+
+export function playerFeeAmount(player: {
+  type: string;
+  monthlyFee?: string | number | null;
+  casualFee?: string | number | null;
+}) {
+  if (player.type === "FEES") return 0;
+  if (player.type === "MONTHLY") return Number(player.monthlyFee || 0);
+  return Number(player.casualFee || 0);
+}
+
 export function playerTypeClass(type: string) {
-  return type === "CASUAL" ? "casual" : "monthly";
+  if (type === "CASUAL") return "casual";
+  if (type === "FEES") return "muted";
+  return "monthly";
 }
 
 export function transactionTypeLabel(type: string) {

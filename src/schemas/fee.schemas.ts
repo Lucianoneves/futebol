@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { playerTypeSchema } from "./common";
+import { chargeablePlayerTypeSchema } from "./common";
 
 export const updateFeeSettingSchema = z.object({
-  type: playerTypeSchema,
+  type: chargeablePlayerTypeSchema,
   amount: z.coerce.number().positive("Valor da taxa inválido"),
 });

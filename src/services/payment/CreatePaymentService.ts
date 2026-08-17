@@ -1,7 +1,7 @@
 import prismaClient from "../../prisma";
 import { PaymentStatus } from "../../generated/prisma/enums";
 import { AddPaymentValueService } from "./AddPaymentValueService";
-import { feeFromPlayer } from "../player/playerFees";
+import { feeFromPlayer, isChargeableType } from "../player/playerFees";
 import { assertYearMonth } from "../../utils/date";
 import { paymentPlayerInclude, withRemaining } from "../match/matchInclude";
 
@@ -39,6 +39,10 @@ class CreatePaymentService {
 
     if (!player.active) {
       throw new Error("Jogador está desativado");
+    }
+
+    if (!isChargeableType(player.type)) {
+      throw new Error("Jogador sem taxa não gera cobrança");
     }
 
     const finalAmount = amount !== undefined ? amount : feeFromPlayer(player);

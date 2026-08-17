@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { playersApi } from "@/lib/services";
-import { money, monthName, filterSortByName, partitionByPlayerType, PAYMENT_STATUS_LABEL, paymentStatusClass, NAME_SEARCH_PLACEHOLDER, visibleHistoryPayment } from "@/lib/format";
+import { money, monthName, filterSortByName, partitionByPlayerType, PAYMENT_STATUS_LABEL, paymentStatusClass, NAME_SEARCH_PLACEHOLDER, visibleHistoryPayment, playerFeeAmount } from "@/lib/format";
 import type { Player, PlayerType, PlayerYearHistory } from "@/lib/types";
 import { ApiError } from "@/lib/api";
 import { WhatsAppImportPanel } from "@/components/players/WhatsAppImportPanel";
@@ -74,7 +74,7 @@ export default function PlayersPage() {
     enabled: Boolean(historyPlayer?.id),
   });
 
-  const { monthly, casual } = useMemo(() => {
+  const { monthly, casual, fees } = useMemo(() => {
     const visible = onlyActive
       ? players
       : players.filter((player) => !hiddenInactiveIds.includes(player.id));
@@ -105,16 +105,17 @@ export default function PlayersPage() {
           onlyActive,
           monthly: monthly.map((player) => ({
             name: player.name,
-            fee: Number(
-              player.type === "MONTHLY" ? player.monthlyFee : player.casualFee
-            ),
+            fee: playerFeeAmount(player),
             active: player.active,
           })),
           casual: casual.map((player) => ({
             name: player.name,
-            fee: Number(
-              player.type === "MONTHLY" ? player.monthlyFee : player.casualFee
-            ),
+            fee: playerFeeAmount(player),
+            active: player.active,
+          })),
+          fees: fees.map((player) => ({
+            name: player.name,
+            fee: 0,
             active: player.active,
           })),
         }),
@@ -153,6 +154,8 @@ export default function PlayersPage() {
       setEditing(null);
       setForm(emptyForm);
       await queryClient.invalidateQueries({ queryKey: ["players"] });
+      await queryClient.invalidateQueries({ queryKey: ["payments"] });
+      await queryClient.invalidateQueries({ queryKey: ["report-monthly"] });
     },
   });
 
@@ -287,6 +290,7 @@ export default function PlayersPage() {
               >
                 <option value="MONTHLY">MENSALISTAS</option>
                 <option value="CASUAL">CONVIDADOS</option>
+                <option value="FEES">SEM TAXA</option>
               </select>
             </div>
             <div className="field">
@@ -392,6 +396,18 @@ export default function PlayersPage() {
           players={casual}
           isAdmin={isAdmin}
           emptyText="Nenhum convidado encontrado."
+          onHistory={setHistoryPlayer}
+          onAccess={isAdmin ? startAccess : undefined}
+          onEdit={startEdit}
+          onDeactivate={(id) => deactivateMutation.mutate(id)}
+          onActivate={(id) => activateMutation.mutate(id)}
+          onHide={isAdmin && !onlyActive ? hideInactivePlayer : undefined}
+        />
+        <PlayerGroup
+          title={`Sem taxa (${fees.length})`}
+          players={fees}
+          isAdmin={isAdmin}
+          emptyText="Nenhum jogador sem taxa encontrado."
           onHistory={setHistoryPlayer}
           onAccess={isAdmin ? startAccess : undefined}
           onEdit={startEdit}
@@ -517,11 +533,9 @@ function PlayerGroup({
                 <td>{index + 1}</td>
                 <td>{player.name}</td>
                 <td>
-                  {money(
-                    player.type === "MONTHLY"
-                      ? player.monthlyFee
-                      : player.casualFee
-                  )}
+                  {player.type === "FEES"
+                    ? "Sem cobrança"
+                    : money(playerFeeAmount(player))}
                 </td>
                 <td>{player.phone || player.email || "-"}</td>
                 <td>

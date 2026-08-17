@@ -612,6 +612,10 @@ tr.report-row-casual {
   gap: 16px;
 }
 
+.split-lists.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .player-pick-list {
   max-height: 280px;
   overflow: auto;

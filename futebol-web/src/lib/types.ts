@@ -1,5 +1,5 @@
 export type Role = "ADMIN" | "USER" | "PLAYER";
-export type PlayerType = "MONTHLY" | "CASUAL";
+export type PlayerType = "MONTHLY" | "CASUAL" | "FEES";
 export type PaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED" | "MISSING";
 
 export type Session = {

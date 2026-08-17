@@ -1,6 +1,6 @@
 import prismaClient from "../../prisma";
 import { PlayerType } from "../../generated/prisma/enums";
-import { ensureFeeSettings, presentFee } from "../player/playerFees";
+import { ensureFeeSettings, isChargeableType, presentFee } from "../player/playerFees";
 
 interface UpdateFeeSettingRequest {
   type: string;
@@ -9,8 +9,8 @@ interface UpdateFeeSettingRequest {
 
 class UpdateFeeSettingService {
   async execute({ type, amount }: UpdateFeeSettingRequest) {
-    if (type !== PlayerType.MONTHLY && type !== PlayerType.CASUAL) {
-      throw new Error("Tipo deve ser MONTHLY ou CASUAL");
+    if (!isChargeableType(type as PlayerType)) {
+      throw new Error("Taxa neutra não tem cobrança e não pode ser alterada");
     }
 
     if (!amount || amount <= 0) {

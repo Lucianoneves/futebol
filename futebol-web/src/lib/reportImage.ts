@@ -82,7 +82,7 @@ export function reportFromPayments(
   month: number
 ): ReportImageData {
   const active = payments.filter((item) => item.status !== "CANCELLED");
-  const monthly = active.filter((item) => item.player?.type !== "CASUAL");
+  const monthly = active.filter((item) => item.player?.type === "MONTHLY");
   const casual = active.filter((item) => item.player?.type === "CASUAL");
 
   const toRow = (item: Payment): ReportImageRow => ({
@@ -755,6 +755,7 @@ export type PlayersImageData = {
   onlyActive: boolean;
   monthly: Array<{ name: string; fee: number; active: boolean }>;
   casual: Array<{ name: string; fee: number; active: boolean }>;
+  fees?: Array<{ name: string; fee: number; active: boolean }>;
 };
 
 export function playersImageFilename(onlyActive: boolean) {
@@ -768,11 +769,19 @@ export async function renderPlayersPng(data: PlayersImageData): Promise<Blob> {
 function drawPlayersCanvas(data: PlayersImageData) {
   const display = fontFamily("--font-barlow", '"Arial Narrow", sans-serif');
   const body = fontFamily("--font-manrope", '"Segoe UI", sans-serif');
+  const fees = data.fees ?? [];
   const rows = Math.max(data.monthly.length, data.casual.length, 1);
   const cardH = 96;
   const panelTop = PAD + 78 + 16 + cardH + 20;
   const panelH = 56 + 38 + rows * ROW_H + 18;
-  const { canvas, ctx } = makeCanvas(panelTop + panelH + PAD);
+  const feesRows = Math.max(fees.length, 1);
+  const feesPanelH = fees.length
+    ? 56 + 38 + feesRows * ROW_H + 18
+    : 0;
+  const feesGap = fees.length ? 16 : 0;
+  const { canvas, ctx } = makeCanvas(
+    panelTop + panelH + feesGap + feesPanelH + PAD
+  );
 
   ctx.fillStyle = "#134829";
   ctx.font = `700 36px ${display}`;
@@ -789,7 +798,7 @@ function drawPlayersCanvas(data: PlayersImageData) {
   const inner = WIDTH - PAD * 2;
   const gap = 16;
   const cardW = (inner - gap * 2) / 3;
-  const total = data.monthly.length + data.casual.length;
+  const total = data.monthly.length + data.casual.length + fees.length;
   const cards = [
     { label: "Total", value: String(total) },
     { label: "Mensalistas", value: String(data.monthly.length) },
@@ -851,6 +860,28 @@ function drawPlayersCanvas(data: PlayersImageData) {
 
   drawPlayers(data.monthly, leftX, "Nenhum mensalista encontrado.");
   drawPlayers(data.casual, rightX, "Nenhum convidado encontrado.");
+
+  if (fees.length > 0) {
+    const feesTop = panelTop + panelH + 16;
+    drawCard(ctx, PAD, feesTop, inner, feesPanelH);
+    ctx.fillStyle = "#13261a";
+    ctx.font = `700 20px ${display}`;
+    ctx.fillText(`Sem taxa (${fees.length})`, PAD + 20, feesTop + 34);
+    drawTableHeader(ctx, PAD, feesTop + 48, inner, headers, ratios, body);
+    fees.forEach((item, index) => {
+      drawRow(
+        ctx,
+        PAD,
+        feesTop + 86 + index * ROW_H,
+        inner,
+        [item.name, "Sem cobrança", item.active ? "Ativo" : "Inativo"],
+        ratios,
+        body,
+        2,
+        item.active ? "ok" : "muted"
+      );
+    });
+  }
 
   return canvas;
 }
