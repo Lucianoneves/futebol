@@ -83,6 +83,8 @@ npm run dev
 
 Abra `http://localhost:3000` e faça login. No deploy, o mesmo endereço serve o painel e a consulta do jogador (`/eu`). A rota antiga `/dashboard` redireciona para `/players`.
 
+**Vercel (só o painel):** em Project Settings → General → **Root Directory** use `futebol-web`. A API Express não sobe na Vercel — publique em outro serviço (Railway, Render) com `DATABASE_URL` e `JWT_SECRET`.
+
 ## Painel
 
 | Rota | Função |
