@@ -9,6 +9,11 @@ const app = express();
 
 app.use(express.json());
 app.use(cors());
+
+app.get("/health", (_req, res) => {
+  return res.json({ ok: true });
+});
+
 app.use(router);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
@@ -35,8 +40,10 @@ async function applyOverdueJob() {
   }
 }
 
-app.listen(3003, () => {
-  console.log("Server  online Ok  3003");
+const port = Number(process.env.PORT) || 3003;
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server online Ok ${port}`);
   applyOverdueJob();
   setInterval(applyOverdueJob, 60 * 60 * 1000);
 });
