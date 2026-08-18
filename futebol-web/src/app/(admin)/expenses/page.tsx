@@ -462,6 +462,9 @@ export default function ExpensesPage() {
       <div className="page-header">
         <div>
           <h1>Despesas</h1>
+          {!isAdmin ? (
+            <span className="consult-badge">Somente consulta</span>
+          ) : null}
           <p>
             Despesa do caixa sai do saldo restante. Despesa do rateio é dividida
             entre quem jogou e não desconta o caixa do time.

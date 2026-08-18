@@ -253,7 +253,14 @@ export default function PlayersPage() {
       <div className="page-header">
         <div>
           <h1>Jogadores</h1>
-          <p>Cadastro, lista do WhatsApp e taxas de mensalistas e convidados</p>
+          {!isAdmin ? (
+            <span className="consult-badge">Somente consulta</span>
+          ) : null}
+          <p>
+            {isAdmin
+              ? "Cadastro, lista do WhatsApp e taxas de mensalistas e convidados"
+              : "Mensalistas, convidados e sem taxa — sem alterar dados"}
+          </p>
         </div>
       </div>
 

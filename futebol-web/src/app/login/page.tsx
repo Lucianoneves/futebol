@@ -7,13 +7,15 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { ApiError } from "@/lib/api";
 
 export default function LoginPage() {
-  const { login, user, ready } = useAuth();
+  const { login, loginAsGuest, user, ready } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
+  const busy = loading || guestLoading;
 
   useEffect(() => {
     if (ready && user) {
@@ -32,6 +34,21 @@ export default function LoginPage() {
       setError(err instanceof ApiError ? err.message : "Falha no login");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGuest() {
+    setError("");
+    setGuestLoading(true);
+
+    try {
+      await loginAsGuest();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Não foi possível abrir a consulta"
+      );
+    } finally {
+      setGuestLoading(false);
     }
   }
 
@@ -81,7 +98,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loading}
+                disabled={busy}
                 placeholder="admin@email.com"
               />
             </div>
@@ -96,7 +113,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  disabled={loading}
+                  disabled={busy}
                   placeholder="••••••••"
                 />
                 <button
@@ -112,9 +129,21 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <button className="btn login-submit" type="submit" disabled={loading}>
+          <button className="btn login-submit" type="submit" disabled={busy}>
             {loading ? "Entrando..." : "Entrar"}
           </button>
+          <button
+            className="btn-secondary login-guest"
+            type="button"
+            onClick={handleGuest}
+            disabled={busy}
+          >
+            {guestLoading ? "Abrindo consulta..." : "Ver painel (somente consulta)"}
+          </button>
+          <p className="login-guest-hint">
+            Recrutadores e visitantes veem jogadores, pagamentos, despesas e
+            relatórios. Sem cadastro e sem alterar dados.
+          </p>
         </form>
       </div>
     </div>

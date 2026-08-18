@@ -1,8 +1,19 @@
 # Futebol
 
-Gestão de um time amador: jogadores (mensalistas e convidados), pagamentos, despesas, saldo e relatório do mês.
+Sistema web para gestão financeira de um time de futebol amador: jogadores (mensalistas, convidados e sem taxa), pagamentos, despesas, caixa, rateio das peladas e relatório do mês.
 
-O repositório tem **uma API** e **um painel web**.
+Substitui planilha e lista do WhatsApp por um painel com regras de cobrança, saldo e consulta pública somente leitura.
+
+## Demonstração
+
+| | |
+|--|--|
+| **Painel (produção)** | [https://futebol-jade.vercel.app](https://futebol-jade.vercel.app) |
+| **Código** | [https://github.com/Lucianoneves/futebol](https://github.com/Lucianoneves/futebol) |
+
+O login abre em `/login`. Admin vai para jogadores; jogador com acesso liberado vai para `/eu`. Recrutador ou visitante clica em **Ver painel (somente consulta)** e navega em jogadores, pagamentos, despesas e relatórios sem alterar nada.
+
+O repositório tem **uma API** e **um painel web**, publicados **separados**.
 
 ```text
 futebol/            API (Express + Prisma + PostgreSQL)
@@ -28,6 +39,7 @@ A raiz usa **Yarn**; `futebol-web/` usa **npm**. Não misture os lockfiles.
 |------|--------|
 | **ADMIN** | Login no painel. Cadastra, edita, desativa/reativa, gera cobrança, registra pagamento, lança despesa (caixa ou rateio). Libera acesso do jogador. |
 | **USER** | Login no painel. Só consulta (listas e relatórios). Sem botões de alterar. |
+| **Visitante** | No login, **Ver painel (somente consulta)**. Vê jogadores, pagamentos, despesas e relatórios. Sem editar. Sem menu de taxas. |
 | **PLAYER** | Login no mesmo site. Vai para `/eu`. Vê a própria situação, despesas do time e o rateio dele. Sem editar. |
 | **Link do grupo** | Sem login. Página pública **somente consulta** (quem pagou / quem deve). Sem menu, sem formulário, sem edição. |
 
@@ -81,9 +93,23 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 npm run dev
 ```
 
-Abra `http://localhost:3000` e faça login. No deploy, o mesmo endereço serve o painel e a consulta do jogador (`/eu`). A rota antiga `/dashboard` redireciona para `/players`.
+Abra `http://localhost:3000` e faça login. No deploy, o mesmo endereço do painel serve a consulta do jogador (`/eu`). A rota antiga `/dashboard` redireciona para `/players`.
 
-**Vercel (só o painel):** em Project Settings → General → **Root Directory** use `futebol-web`. A API Express não sobe na Vercel — publique em outro serviço (Railway, Render) com `DATABASE_URL` e `JWT_SECRET`.
+## Produção (dois deploys)
+
+São dois serviços. Alterar o login ou o CSS **não** muda nada se você só republicar a API.
+
+| Serviço | Pasta | Onde sobe | O que muda |
+|---------|--------|-----------|------------|
+| **Painel** | `futebol-web/` | [Vercel](https://futebol-jade.vercel.app) | Telas, login, relatórios, `/eu` |
+| **API** | raiz do repo | Render, Railway ou similar | Rotas, Prisma, JWT, atraso automático |
+| **Banco** | Neon (PostgreSQL) | `DATABASE_URL` na API | Dados |
+
+**Vercel (painel):** Project Settings → General → **Root Directory** = `futebol-web`. Variáveis: `NEXT_PUBLIC_API_URL` (URL pública da API) e `NEXT_PUBLIC_APP_URL` (URL do painel, hoje `https://futebol-jade.vercel.app`).
+
+**API:** publique a raiz do repo com `DATABASE_URL`, `JWT_SECRET` e `PORT`. Health check: `GET /health`.
+
+Depois de um commit no painel, abra o projeto **futebol-jade** na Vercel → **Deployments** → **Redeploy** do `main`. Redeploy só da API deixa o site visual antigo.
 
 ## Painel
 
@@ -120,8 +146,10 @@ Quase todas as rotas pedem `Authorization: Bearer <token>`. Escrita exige admin.
 
 | Método | Rota | Auth | Descrição |
 |--------|------|------|-----------|
+| GET | `/health` | Não | Saúde do servidor (`{ ok: true }`) |
 | POST | `/users` | Não | Criar usuário (o 1º vira ADMIN) |
 | POST | `/session` | Não | Login |
+| POST | `/session/guest` | Não | Sessão de visitante (role USER, só consulta) |
 | GET | `/me` | Token | Usuário logado |
 | GET | `/me/status` | Jogador | Situação do mês (`year`, `month` opcionais) |
 | GET | `/me/shares` | Jogador | Rateios do jogador logado |

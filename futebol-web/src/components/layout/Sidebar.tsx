@@ -17,7 +17,7 @@ const links = [
   { href: "/players", label: "Jogadores" },
   { href: "/payments", label: "Pagamentos" },
   { href: "/expenses", label: "Despesas" },
-  { href: "/fees", label: "Taxas" },
+  { href: "/fees", label: "Taxas", adminOnly: true },
   { href: "/reports", label: "Relatórios" },
 ];
 
@@ -56,7 +56,9 @@ function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
       </DrawerHeader>
 
       <DrawerBody>
-        {links.map((link) => {
+        {links
+          .filter((link) => isAdmin || !link.adminOnly)
+          .map((link) => {
           const active = (pathname ?? "").startsWith(link.href);
           return (
             <Link
@@ -73,7 +75,9 @@ function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
 
       <DrawerFooter>
         <p className="user-name">{user?.name}</p>
-        <p className="user-role">{isAdmin ? "Administrador" : "Usuário"}</p>
+        <p className="user-role">
+          {isAdmin ? "Administrador" : "Somente consulta"}
+        </p>
         <button type="button" className="btn-ghost" onClick={logout}>
           Sair
         </button>

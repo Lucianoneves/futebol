@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { dashboardApi, reportsApi } from "@/lib/services";
 import {
   currentYearMonth,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/shareReport";
 
 export default function ReportsPage() {
+  const { isAdmin } = useAuth();
   const { year: initialYear, month: initialMonth } = currentYearMonth();
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
@@ -114,6 +116,9 @@ export default function ReportsPage() {
       <div className="page-header">
         <div>
           <h1>Relatórios</h1>
+          {!isAdmin ? (
+            <span className="consult-badge">Somente consulta</span>
+          ) : null}
           <p>Quem pagou e Em haver no mês · Excel e PDF com arrecadação, despesas e saldo</p>
         </div>
       </div>

@@ -36,6 +36,11 @@ export const authApi = {
       body: { email, password },
       auth: false,
     }),
+  guest: () =>
+    api<Session>("/session/guest", {
+      method: "POST",
+      auth: false,
+    }),
 };
 
 export const playersApi = {

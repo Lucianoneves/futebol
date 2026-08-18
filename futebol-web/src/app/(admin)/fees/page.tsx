@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { feesApi } from "@/lib/services";
@@ -10,10 +11,17 @@ import { ApiError } from "@/lib/api";
 
 export default function FeesPage() {
   const { isAdmin } = useAuth();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [type, setType] = useState<PlayerType>("MONTHLY");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!isAdmin) {
+      router.replace("/players");
+    }
+  }, [isAdmin, router]);
 
   const { data: fees = [], isLoading } = useQuery({
     queryKey: ["fees"],
@@ -36,6 +44,14 @@ export default function FeesPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao atualizar taxa");
     }
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="loading-screen">
+        <p>Carregando...</p>
+      </div>
+    );
   }
 
   return (

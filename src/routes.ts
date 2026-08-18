@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { CreateUserController } from "./controllers/user/CreateUserController";
 import { AuthUserController } from "./controllers/user/AuthUserController";
+import { GuestViewController } from "./controllers/user/GuestViewController";
 import { DetailUserController } from "./controllers/user/DetailUserController";
 import { isAuthenticated } from "./middlewares/isAuthenticated";
 import { isAdmin } from "./middlewares/isAdmin";
@@ -97,6 +98,7 @@ router.post(
   validate(authUserSchema),
   new AuthUserController().handle
 ); // Autenticar usuário
+router.post("/session/guest", new GuestViewController().handle); // Visitante: só consulta
 router.get("/me", isAuthenticated, new DetailUserController().handle); // Detalhar usuário
 router.get(
   "/me/status",

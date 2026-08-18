@@ -319,6 +319,9 @@ export default function PaymentsPage() {
       <div className="page-header">
         <div>
           <h1>Pagamentos</h1>
+          {!isAdmin ? (
+            <span className="consult-badge">Somente consulta</span>
+          ) : null}
           <p>
             {monthLabel(month)}/{year}
           </p>

@@ -22,6 +22,7 @@ type AuthContextValue = {
   isAdmin: boolean;
   isPlayer: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginAsGuest: () => Promise<void>;
   logout: () => void;
 };
 
@@ -41,21 +42,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setReady(true);
   }, []);
 
+  function applySession(session: Session) {
+    saveSession(session);
+    setUser({
+      id: session.id,
+      name: session.name,
+      email: session.email,
+      role: session.role,
+      playerId: session.playerId ?? null,
+    });
+    router.replace(homePath(session.role));
+  }
+
   const login = useCallback(
     async (email: string, password: string) => {
       const session = await authApi.login(email, password);
-      saveSession(session);
-      setUser({
-        id: session.id,
-        name: session.name,
-        email: session.email,
-        role: session.role,
-        playerId: session.playerId ?? null,
-      });
-      router.replace(homePath(session.role));
+      applySession(session);
     },
     [router]
   );
+
+  const loginAsGuest = useCallback(async () => {
+    const session = await authApi.guest();
+    applySession(session);
+  }, [router]);
 
   const logout = useCallback(() => {
     clearSession();
@@ -70,9 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: user?.role === ("ADMIN" as Role),
       isPlayer: user?.role === ("PLAYER" as Role),
       login,
+      loginAsGuest,
       logout,
     }),
-    [user, ready, login, logout]
+    [user, ready, login, loginAsGuest, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
