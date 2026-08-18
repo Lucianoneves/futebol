@@ -39,7 +39,7 @@ A raiz usa **Yarn**; `futebol-web/` usa **npm**. Não misture os lockfiles.
 |------|--------|
 | **ADMIN** | Login no painel. Cadastra, edita, desativa/reativa, gera cobrança, registra pagamento, lança despesa (caixa ou rateio). Libera acesso do jogador. |
 | **USER** | Login no painel. Só consulta (listas e relatórios). Sem botões de alterar. |
-| **Visitante** | No login, **Ver painel (somente consulta)**. Vê jogadores, pagamentos, despesas e relatórios. Sem editar. Sem menu de taxas. |
+| **Visitante** | No login, **Ver painel (somente consulta)**. Vê jogadores, pagamentos, despesas e relatórios. Sem editar. Sem menu de taxas. Ao sair do site ou do app (sem clicar em Sair) e voltar, cai no login de novo. |
 | **PLAYER** | Login no mesmo site. Vai para `/eu`. Vê a própria situação, despesas do time e o rateio dele. Sem editar. |
 | **Link do grupo** | Sem login. Página pública **somente consulta** (quem pagou / quem deve). Sem menu, sem formulário, sem edição. |
 

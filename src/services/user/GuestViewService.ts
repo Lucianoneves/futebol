@@ -62,6 +62,7 @@ class GuestViewService {
       email: user.email,
       role: user.role,
       playerId: user.playerId,
+      guest: true,
       token,
     };
   }

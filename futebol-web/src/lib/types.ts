@@ -9,6 +9,7 @@ export type Session = {
   role: Role;
   playerId?: string | null;
   token: string;
+  guest?: boolean;
 };
 
 export type Player = {
